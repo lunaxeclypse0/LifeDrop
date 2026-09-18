@@ -1,0 +1,32 @@
+{
+  "name": "lifedrop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Drop it. LifeDrop remembers. A personal AI-powered life organizer.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc -b --noEmit",
+    "smoke": "node scripts/smoke.mjs .smoke",
+    "shots": "node scripts/screenshots.mjs .shots"
+  },
+  "dependencies": {
+    "idb": "^8.0.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "playwright": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vite-plugin-pwa": "^1.0.3"
+  }
+}

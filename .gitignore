@@ -1,0 +1,9 @@
+
+*.local
+.DS_Store
+.shots
+.smoke
+dev-dist
+dist
+node_modules
+tsconfig.tsbuildinfo

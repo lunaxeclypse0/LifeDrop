@@ -1,0 +1,100 @@
+/* LifeDrop design tokens — design/design-system.md + design/motion-spec.md */
+
+/* Light mode is a white canvas held together by hairlines rather than by
+   shadows and grey panels: the page is near-white, cards are pure white, and
+   separation comes from a 1px rule. Weight is carried by type and by one
+   saturated accent, used sparingly. */
+:root {
+  --bg: #FCFCFD;
+  --surface: #FFFFFF;
+  --elev: #FFFFFF;
+  --text: #061A3C;
+  --text2: #4C5B78;
+  --muted: #8A93A6;
+  --border: #E8EAF1;
+  --hair: #F2F3F8;
+  --primary: #4C46F2;
+  --primary-ink: #3A2FD8;
+  --primary-soft: #EFEEFE;
+  --brand-grad: linear-gradient(135deg, #5B54F4, #3A2FD8);
+  --mark-grad: linear-gradient(140deg, #12D5FD, #1A94FD 34%, #683CFC 72%, #1F1FAD);
+  --accent: #12BEE8;
+  --accent-ink: #0B8CAD;
+  --accent-soft: #E9F8FC;
+  --violet: #8B5CF6;
+  --success: #0FA36B;
+  --warning: #D98008;
+  --danger: #E1443C;
+  --info: #3B7DF6;
+
+  /* Almost nothing — depth is the hairline, not a drop shadow. */
+  --sh-sm: none;
+  --sh-md: 0 6px 20px -10px rgba(11, 18, 32, .14);
+  --sh-lg: 0 18px 44px -18px rgba(11, 18, 32, .24);
+
+  /* category — flat ink, one tinted tile each */
+  --cat-bill: #6366F1;
+  --cat-receipt: #0891B2;
+  --cat-booking: #3B82F6;
+  --cat-subscription: #8B5CF6;
+  --cat-warranty: #10B981;
+  --cat-document: #64748B;
+  --cat-event: #D97706;
+  --tint: 13%; /* strength of a category tile wash over the surface */
+
+  /* motion */
+  --t-fast: 170ms;
+  --t-standard: 230ms;
+  --t-emphasis: 310ms;
+  --t-large: 440ms;
+  --e-out: cubic-bezier(.16, .84, .26, 1);
+  --e-in: cubic-bezier(.4, 0, 1, 1);
+  --e-spring: cubic-bezier(.2, .9, .24, 1);
+  --e-std: cubic-bezier(.2, .8, .2, 1);
+
+  /* layout */
+  --gutter: 22px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-h: 64px;
+}
+
+/* Dark mode is the same restraint inverted: a near-black navy ground, one
+   elevation step, hairlines rather than shadows. Not a flip of the light
+   palette — the accents are lifted so they hold up on a dark ground. */
+:root[data-theme='dark'] {
+  --bg: #080D18;
+  --surface: #0F1626;
+  --elev: #141D30;
+  --text: #F6F8FC;
+  --text2: #9AA5BC;
+  --muted: #6B7689;
+  --border: #1E2739;
+  --hair: #161E2D;
+  --primary: #8C86FF;
+  --primary-ink: #ABA5FF;
+  --primary-soft: #191A3C;
+  --brand-grad: linear-gradient(135deg, #5B54F4, #3A2FD8);
+  --mark-grad: linear-gradient(140deg, #12D5FD, #1A94FD 34%, #683CFC 72%, #1F1FAD);
+  --accent: #3DDCF5;
+  --accent-ink: #67E8F9;
+  --accent-soft: #0C2732;
+  --violet: #A78BFA;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --danger: #F87171;
+  --info: #60A5FA;
+
+  --sh-sm: none;
+  --sh-md: 0 8px 24px -12px rgba(0, 0, 0, .8);
+  --sh-lg: 0 20px 48px -18px rgba(0, 0, 0, .85);
+
+  --cat-bill: #818CF8;
+  --cat-receipt: #22D3EE;
+  --cat-booking: #60A5FA;
+  --cat-subscription: #A78BFA;
+  --cat-warranty: #34D399;
+  --cat-document: #94A3B8;
+  --cat-event: #FBBF24;
+  --tint: 20%;
+}
