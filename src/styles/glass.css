@@ -21,8 +21,10 @@
  */
 
 :root[data-theme='dark'] {
-  /* Two stops, so a panel has a lit edge and a shaded one. */
-  --glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.022));
+  /* Two stops, so a panel has a lit edge and a shaded one. Kept low: every
+     point of white here lifts the panel and costs contrast on the muted text
+     sitting on it, which measured under 4.5:1 at 0.075. */
+  --glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.016));
   --glass-edge: rgba(255, 255, 255, 0.14);
   /* The hairline of light along the top edge is what reads as "glass" rather
      than "grey box". */
@@ -66,7 +68,12 @@
 /* ---------- panels ---------- */
 
 :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt) {
-  background: var(--glass-fill);
+  /* The near-black layer under the glass is what keeps a panel readable when it
+     happens to be sitting on a bright part of the ground. Without it the
+     captions on those panels measured 4.1:1, and the alternative — lifting the
+     muted colour until it survived the worst spot — would have collapsed it
+     into --text2 everywhere else. */
+  background: var(--glass-fill), rgba(8, 13, 24, 0.5);
   border-color: var(--glass-edge);
   box-shadow: var(--glass-lip), var(--glass-cast);
 }

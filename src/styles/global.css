@@ -490,6 +490,15 @@ a { color: var(--primary-ink); text-decoration: none; }
   border-radius: 20px; padding: 18px;
   box-shadow: 0 16px 34px -14px rgba(67, 56, 202, .6);
 }
+/* The brand gradient opens on a bright cyan, and this card puts white text
+   straight onto it — 2.1:1, the worst contrast in the app. A scrim aligned to
+   the same 140deg angle sits heaviest exactly where the gradient is lightest
+   and almost lifts off the deep purple end, so the card keeps its colour and
+   the text becomes readable. Content is above it on z-index 1. */
+.gradcard::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(140deg, rgba(4, 10, 30, .54), rgba(4, 10, 30, .12) 45%, rgba(4, 10, 30, .20));
+}
 .gradcard::after {
   content: ''; position: absolute; right: -30px; top: -40px;
   width: 150px; height: 150px; border-radius: 999px;

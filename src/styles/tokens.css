@@ -10,7 +10,11 @@
   --elev: #FFFFFF;
   --text: #061A3C;
   --text2: #4C5B78;
-  --muted: #8A93A6;
+  /* Was #8A93A6, which is 3.09:1 on white — captions, section labels and the
+     chart's month names all failed there. This is 5.1:1, still clearly a step
+     below --text2 at 6.8:1, so the hierarchy survives. Legibility in Manila
+     sunlight is worth more than the extra paleness. */
+  --muted: #656E80;
   --border: #E8EAF1;
   --hair: #F2F3F8;
   --primary: #4C46F2;
@@ -26,6 +30,15 @@
   --warning: #D98008;
   --danger: #E1443C;
   --info: #3B7DF6;
+
+  /* The same tones, darkened for text. The base colours are tuned to be read as
+     fills — a chip, a swipe action, a dot — and every one of them fell under
+     4.5:1 as small type on white. These are the versions that carry "Tomorrow",
+     "In 3 days" and "Done": the words a person cannot afford to skim past. */
+  --success-ink: #0A7D52;
+  --warning-ink: #9A6206;
+  --danger-ink: #C62F28;
+  --info-ink: #2A62D4;
 
   /* Almost nothing — depth is the hairline, not a drop shadow. */
   --sh-sm: none;
@@ -68,7 +81,11 @@
   --elev: #141D30;
   --text: #F6F8FC;
   --text2: #9AA5BC;
-  --muted: #6B7689;
+  /* Lifted from #6B7689, which measured 3.75:1 against a panel — under the 4.5
+     that body text needs, and it was carrying captions, section labels and the
+     month names under the spending chart. This is 5.3:1, with margin for the
+     brighter places the ground shows through. */
+  --muted: #868FA3;
   --border: #1E2739;
   --hair: #161E2D;
   --primary: #8C86FF;
@@ -84,6 +101,14 @@
   --warning: #FBBF24;
   --danger: #F87171;
   --info: #60A5FA;
+
+  /* On a dark ground these already clear 4.5:1, so the text versions are the
+     colours themselves. The names exist so a component never has to know which
+     theme it is in. */
+  --success-ink: #34D399;
+  --warning-ink: #FBBF24;
+  --danger-ink: #F87171;
+  --info-ink: #60A5FA;
 
   --sh-sm: none;
   --sh-md: 0 8px 24px -12px rgba(0, 0, 0, .8);

@@ -59,7 +59,7 @@ Nothing here is a mock-up. Every screen reads and writes the same store.
 | **Accounts** | Optional Supabase auth. Each user's drops are isolated by row-level security. |
 | **Sync** | Offline-first: local write, outbox, flush when online. Originals go to a private bucket. |
 | **Data** | JSON export of everything; permanent delete. |
-| **Theme** | Light / dark / system, with a one-tap switch in the Home top bar. Honours `prefers-color-scheme` and `prefers-reduced-motion`. |
+| **Theme** | Light / dark / system, switched in Profile or in Appearance. Light is white-minimalist; dark is near-black with a frosted-glass treatment. Honours `prefers-color-scheme` and `prefers-reduced-motion`. |
 | **First run** | Empty. No invented drops, no fake numbers — a new install shows the empty states and one thing to do. |
 | **Voice** | Ask questions, speak a drop, or search by voice. Browser speech in and out — no key, no quota. |
 
@@ -403,6 +403,9 @@ node scripts/lock.mjs           # PIN set -> reload gate -> wrong PIN -> lockout
 # up fetching file:///C:/Program Files/Git/api/extract.
 MSYS_NO_PATHCONV=1 VITE_EXTRACT_ENDPOINT=/api/extract npm run build
 node scripts/ratelimit.mjs      # waits a per-minute cap out, stops on a daily one
+npm run contrast           # WCAG AA text contrast, sampled from rendered
+                           # pixels in both themes (a translucent panel has no
+                           # single background colour to compute from)
 npm run audit              # every screen x both themes: overflow, tap targets,
                            # overlaps, clipped text, console errors
 npm run shots              # screenshots of every main screen, light and dark

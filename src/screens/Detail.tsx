@@ -9,11 +9,13 @@ import { CATEGORIES, REPEAT_LABEL, isPayable } from '../lib/types'
 import { longDate, formatTime, peso, relativeTime, reminderLabel, trailingLabel, whenLine } from '../lib/format'
 
 const TONE: Record<string, string> = {
-  danger: 'var(--danger)',
-  warning: 'var(--warning)',
-  info: 'var(--info)',
+  // The -ink variants: these are text, and the fill colours are too light to
+  // read as small type on white. See tokens.css.
+  danger: 'var(--danger-ink)',
+  warning: 'var(--warning-ink)',
+  info: 'var(--info-ink)',
   muted: 'var(--text2)',
-  success: 'var(--success)',
+  success: 'var(--success-ink)',
 }
 
 const DOT: Record<string, string> = {
