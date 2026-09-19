@@ -11,6 +11,7 @@
  *   GEMINI_FALLBACK_MODEL  optional — used when the first is out of quota
  *   GROQ_API_KEY     optional — a second free reader, used when Gemini is out
  *   GROQ_MODEL       optional — which Groq vision model to use
+ *   EXTRACT_CROSSCHECK  optional — "0" turns the second opinion off
  *   XAI_API_KEY      optional — a PAID last resort, after every free one
  *   XAI_MODEL        optional — which Grok model to use
  */
@@ -35,6 +36,7 @@ import {
   type ThinkMode,
 } from './_model'
 import { providers, readWithProvider } from './_openai'
+import { reconcile } from './_reconcile'
 
 const CATEGORIES = [
   'bill',
@@ -216,26 +218,52 @@ export default async function handler(request: Request): Promise<Response> {
       }),
     })
 
-  // Out of quota on the good model is not the end of the day — the lite one
-  // keeps its own allowance. See modelChain().
   const tried = modelChain()
-  let res: Response
-  try {
-    res = await callWithThinking(
+  const free = providers().filter((p) => !p.paid)
+
+  const askGemini = async (): Promise<Response> => {
+    // Out of quota on the good model is not the end of the day — the lite one
+    // keeps its own allowance. See modelChain().
+    let r = await callWithThinking(
       (mode) => call(tried[0], mode),
       knownThinkMode,
       (m) => {
         knownThinkMode = m
       },
     )
-    for (let i = 1; i < tried.length && worthFallingBack(res.status); i++) {
-      res = await callWithThinking(
+    for (let i = 1; i < tried.length && worthFallingBack(r.status); i++) {
+      r = await callWithThinking(
         (mode) => call(tried[i], mode),
         knownThinkMode,
         (m) => {
           knownThinkMode = m
         },
       )
+    }
+    return r
+  }
+
+  // Cross-checking means a second model reads the same image and the two
+  // readings are compared, which is the only way the app can tell the user
+  // *which* number to distrust. It runs in parallel, so it costs a little
+  // quota rather than a slower scan, and it is skipped when nothing free is
+  // configured to do it.
+  const crossCheck = free.length > 0 && process.env.EXTRACT_CROSSCHECK !== '0'
+
+  let res: Response
+  let checker: Record<string, unknown> | null = null
+  try {
+    if (crossCheck) {
+      const [a, b] = await Promise.all([
+        askGemini(),
+        // Its failure must never fail the scan: it is a second opinion, not a
+        // dependency.
+        readWithProvider(free[0], prompt(today), mime, data).catch(() => null),
+      ])
+      res = a
+      if (b?.ok) checker = b.out
+    } else {
+      res = await askGemini()
     }
   } catch {
     return json({ error: 'upstream_unreachable', message: 'Could not reach the model.' }, 502)
@@ -249,9 +277,13 @@ export default async function handler(request: Request): Promise<Response> {
     // Gemini has refused. Hand the drop to whatever else is configured, free
     // providers first — see providers(). With none configured this loop does
     // nothing, which is the default.
-    let relay: Record<string, unknown> | null = null
-    if (worthFallingBack(res.status)) {
+    //
+    // The cross-check already asked the first free provider, so its answer is
+    // reused rather than paid for twice.
+    let relay: Record<string, unknown> | null = checker
+    if (!relay && worthFallingBack(res.status)) {
       for (const provider of providers()) {
+        if (crossCheck && provider === free[0]) continue
         const reading = await readWithProvider(provider, prompt(today), mime, data)
         if (reading.ok) {
           relay = reading.out
@@ -301,6 +333,17 @@ export default async function handler(request: Request): Promise<Response> {
     }
   }
 
+  // Two readings of the same image, turned into one — agreement raises
+  // confidence, a disagreement on the amount or the date drops it below the
+  // review threshold so the user is asked to look. Only when the primary
+  // reading is Gemini's; `out === checker` means Gemini never answered and
+  // there is nothing to compare it with.
+  let checked: ReturnType<typeof reconcile> | null = null
+  if (checker && out !== checker) {
+    checked = reconcile(out, checker)
+    out = checked.out
+  }
+
   if (out.readable === 'no') {
     return json({ error: 'unreadable', message: 'The document could not be read.' }, 422)
   }
@@ -324,5 +367,10 @@ export default async function handler(request: Request): Promise<Response> {
     notes: typeof out.notes === 'string' ? out.notes.trim() : '',
     confidence,
     uncertain: Array.isArray(out.uncertain) ? out.uncertain.filter((u) => typeof u === 'string') : [],
+    // Ignored by the client's Extraction mapping, but it is what turns "why is
+    // this flagged?" into an answer.
+    crossChecked: !!checked,
+    agreed: checked?.agreed ?? [],
+    conflicted: checked?.conflicted ?? [],
   })
 }

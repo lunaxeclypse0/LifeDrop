@@ -186,6 +186,7 @@ No credit card.
 | `GEMINI_FALLBACK_MODEL` | *(optional)* `gemini-3.5-flash-lite` | Used when the first is out of quota or gone. Set it to the same value as `GEMINI_MODEL` to disable the fallback. |
 | `GROQ_API_KEY` | *(optional)* | A second **free** reader, used when Gemini is out. No card needed. |
 | `GROQ_MODEL` | *(optional)* `qwen/qwen3.6-27b` | Which Groq vision model reads the drop. |
+| `EXTRACT_CROSSCHECK` | *(optional)* | `0` turns the second opinion off. On whenever a free second reader is configured. |
 | `XAI_API_KEY` | *(optional)* | A **paid** last resort, after every free one. Unset means it is never called — read below first. |
 | `XAI_MODEL` | *(optional)* `grok-4.6` | Which Grok model reads the drop. |
 
@@ -300,6 +301,33 @@ the model accepted is remembered.
 Groq's real constraint is tokens per minute, not requests: an image costs about
 2,048 input tokens against a 6,000/min free budget, so roughly two scans a
 minute. That is far more than a person filing bills will ever need.
+
+### The second opinion
+
+With a free second reader configured, both read the same image **in parallel**
+and `api/_reconcile.ts` compares them. This is not about getting a better
+number — it is about knowing which number not to trust.
+
+| Outcome | What happens |
+|---|---|
+| Both read the same amount **and** date | Confidence raised to 0.92 |
+| They disagree on either | Confidence dropped to 0.5, the field named in `uncertain` |
+| One found a field the other missed | Value filled in, field named, confidence capped at 0.7 |
+| The second could not read the image | Ignored — silence is not a dissenting opinion |
+
+Two of those fall below the client's `REVIEW_THRESHOLD`, so the drop arrives on
+the Review screen already flagged, pointing at the field to check. A missed due
+date costs money quietly; this is the only mechanism that says *which* number
+went wrong.
+
+The primary reading always wins a tie — it comes from the stronger model, and
+this is a cross-check, not a vote. Amounts are compared numerically, so
+`"3,420.50"` and `"3420.5"` are not a disagreement, and merchant names are
+compared loosely enough that "MERALCO" and "Meralco Manila" are not either.
+
+It runs in parallel, so it costs quota rather than time, and it is skipped
+entirely when nothing free is configured to do it. `EXTRACT_CROSSCHECK=0` turns
+it off without removing the fallback.
 
 **Before setting `XAI_API_KEY`**, two things. Grok has **no free tier** — new
 accounts get a one-time credit that expires, so this spends real money once that

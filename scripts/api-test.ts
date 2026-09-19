@@ -273,6 +273,112 @@ process.env.GEMINI_API_KEY = 'test-key'
   delete process.env.GEMINI_FALLBACK_MODEL
 }
 
+// --- two models reading the same bill --------------------------------------
+// Reading a bill wrong is worse than failing to read it, so the point of this
+// is not a better number. It is knowing which number not to trust.
+{
+  process.env.GROQ_API_KEY = 'groq-secret'
+  const seen: string[] = []
+
+  const both = (groqSays: Record<string, unknown>) =>
+    (async (url: string) => {
+      seen.push(new URL(url).host)
+      if (url.includes('groq.com')) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(groqSays) } }] }), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify(
+          modelSays({
+            readable: 'yes', title: 'Electricity Bill', merchant: 'Meralco', amount: '3420.50',
+            category: 'bill', date: '2026-09-30', repeat: 'monthly', confidence: '0.80', uncertain: [],
+          }),
+        ),
+        { status: 200 },
+      )
+    }) as unknown as typeof fetch
+
+  {
+    globalThis.fetch = both({ readable: 'yes', title: 'Meralco', amount: '3420.50', category: 'bill', date: '2026-09-30', confidence: '0.7' })
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('both models read the same amount and date', b.crossChecked === true, b.crossChecked)
+    check('  agreement raises confidence', (b.confidence as number) >= 0.92, b.confidence)
+    check('  and nothing is flagged', (b.uncertain as string[]).length === 0, b.uncertain)
+    check('  both were asked, in one round trip', seen.length === 2, seen)
+  }
+  {
+    // The case this exists for: a misread total.
+    globalThis.fetch = both({ readable: 'yes', title: 'Meralco', amount: '3420.60', category: 'bill', date: '2026-09-30', confidence: '0.9' })
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('a disagreement on the amount drops confidence below review', (b.confidence as number) < 0.82, b.confidence)
+    check('  and names the field to check', (b.uncertain as string[]).includes('amount'), b.uncertain)
+    check('  the stronger model still supplies the value', b.amount === 3420.5, b.amount)
+    check('  and the conflict is reported', (b.conflicted as string[]).includes('amount'), b.conflicted)
+  }
+  {
+    globalThis.fetch = both({ readable: 'yes', title: 'Meralco', amount: '3420.50', category: 'bill', date: '2026-10-15', confidence: '0.9' })
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('a disagreement on the due date is caught too', (b.uncertain as string[]).includes('date'), b.uncertain)
+  }
+  {
+    // Centavos rounding is not a disagreement worth alarming anyone over.
+    globalThis.fetch = both({ readable: 'yes', title: 'Meralco', amount: '3,420.50', category: 'bill', date: '2026-09-30', confidence: '0.9' })
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('formatting differences are not treated as conflicts', (b.confidence as number) >= 0.92, b.confidence)
+  }
+  {
+    // A second model that could not read the image is not a dissenting vote.
+    globalThis.fetch = both({ readable: 'no', title: '', category: 'document', confidence: '0' })
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('an unreadable second opinion does not drag a good reading down', b.confidence === 0.8, b.confidence)
+    check('  and the drop is still saved', b.amount === 3420.5, b.amount)
+  }
+  {
+    // Gemini missing a field the other found: fill it, but say it is unchecked.
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('groq.com')) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ readable: 'yes', title: 'Grab', amount: '318', category: 'receipt', date: '2026-09-18', confidence: '0.8' }) } }] }), { status: 200 })
+      }
+      return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Grab Receipt', category: 'receipt', amount: '', date: '2026-09-18', confidence: '0.9' })), { status: 200 })
+    }) as unknown as typeof fetch
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('a gap in one reading is filled from the other', b.amount === 318, b.amount)
+    check('  but marked, because only one model saw it', (b.uncertain as string[]).includes('amount'), b.uncertain)
+    check('  and confidence reflects that', (b.confidence as number) <= 0.7, b.confidence)
+  }
+  {
+    // Turning it off must actually turn it off.
+    process.env.EXTRACT_CROSSCHECK = '0'
+    const log: string[] = []
+    globalThis.fetch = (async (url: string) => {
+      log.push(new URL(url).host)
+      return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
+    }) as typeof fetch
+    const b = (await (await handler(post(IMG))).json()) as Record<string, unknown>
+    check('EXTRACT_CROSSCHECK=0 asks one model only', !log.some((h) => h.includes('groq')), log)
+    check('  and says so', b.crossChecked === false, b.crossChecked)
+    delete process.env.EXTRACT_CROSSCHECK
+  }
+  {
+    // Gemini out of quota: the second reading already in hand is used rather
+    // than asked for again.
+    let groqCalls = 0
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes('groq.com')) {
+        groqCalls++
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ readable: 'yes', title: 'Meralco Bill', amount: '3420.50', category: 'bill', date: '2026-09-30', confidence: '0.85' }) } }] }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ error: { message: 'PerDay quota' } }), { status: 429 })
+    }) as unknown as typeof fetch
+    const res = await handler(post(IMG))
+    check('Gemini out -> the cross-check reading carries the scan', res.status === 200, res.status)
+    const b = (await res.json()) as Record<string, unknown>
+    check('  without asking the same model twice', groqCalls === 1, groqCalls)
+    check('  and it is not compared against itself', b.crossChecked === false, b.crossChecked)
+    check('  the amount survives', b.amount === 3420.5, b.amount)
+  }
+  delete process.env.GROQ_API_KEY
+}
+
 // --- the providers that take over when Gemini is out ----------------------
 // One of them spends real money and both receive a photograph of somebody's
 // bill, so the tests that matter most are the ones proving they stay asleep.
@@ -316,6 +422,8 @@ const hostsOf = (log: string[]) => log.join(' ')
   check('  and the daily limit is still reported honestly', res.status === 429, res.status)
 }
 {
+  // The free one is now asked every time, because that is what cross-checking
+  // is. The paid one must still never be touched while Gemini is answering.
   process.env.GROQ_API_KEY = 'groq-secret'
   process.env.XAI_API_KEY = 'xai-secret'
   const log: string[] = []
@@ -324,7 +432,8 @@ const hostsOf = (log: string[]) => log.join(' ')
     return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
   }) as typeof fetch
   await handler(post(IMG))
-  check('a working Gemini never reaches any of them', !/groq|x\.ai/.test(hostsOf(log)), log)
+  check('a working Gemini never reaches the paid provider', !/x\.ai/.test(hostsOf(log)), log)
+  check('  while the free one is asked for a second opinion', /groq/.test(hostsOf(log)), log)
 }
 {
   // The whole point: free before paid, and the paid one untouched when the
