@@ -257,7 +257,11 @@ a { color: var(--primary-ink); text-decoration: none; }
 /* drop card + swipe */
 .swipe { position: relative; overflow: hidden; border-radius: 18px; margin-bottom: 10px; }
 .swipe-actions {
-  position: absolute; inset: 0 0 0 auto; width: 112px;
+  /* Inset by a pixel top and bottom. The face is sized by its own content and
+     the actions by the container, so the two round to heights that can differ
+     by a fraction of a pixel — which showed as a hairline of blue and grey
+     along the bottom edge of a card that had never been swiped. */
+  position: absolute; inset: 1px 0 1px auto; width: 112px;
   display: flex; align-items: stretch;
 }
 .swipe-actions button {

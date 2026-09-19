@@ -4,6 +4,9 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import { warmVoices } from './lib/speech'
 import './styles/global.css'
+// After global.css: every rule in it is scoped to the dark theme and meant to
+// win over the base surface styles.
+import './styles/glass.css'
 
 /**
  * Keeping an installed app current.

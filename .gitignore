@@ -6,6 +6,8 @@
 .audit
 .interactions
 .ratelimit
+.glass
+.fixshots
 dev-dist
 dist
 node_modules
