@@ -318,7 +318,10 @@ node scripts/interactions.mjs   # mark-paid rollover, archive/undo, search, vali
 node scripts/lock.mjs           # PIN set -> reload gate -> wrong PIN -> lockout
 
 # The rate-limit path, against a stubbed 429. Needs a build that actually calls
-# the endpoint: VITE_EXTRACT_ENDPOINT=/api/extract npm run build
+# the endpoint. In Git Bash on Windows, MSYS_NO_PATHCONV=1 is not optional:
+# without it the leading slash is rewritten to a Windows path and the app ends
+# up fetching file:///C:/Program Files/Git/api/extract.
+MSYS_NO_PATHCONV=1 VITE_EXTRACT_ENDPOINT=/api/extract npm run build
 node scripts/ratelimit.mjs      # waits a per-minute cap out, stops on a daily one
 npm run audit              # every screen x both themes: overflow, tap targets,
                            # overlaps, clipped text, console errors
