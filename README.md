@@ -190,6 +190,17 @@ before you set it will still use the mock.
 Leaving `VITE_EXTRACT_ENDPOINT` unset is a safe default — the app runs on the mock
 extractor rather than breaking.
 
+### Updating an installed app
+
+Once it is on a home screen there is no address bar to reload from, so
+`src/main.tsx` asks the service worker for a fresh build every time the app
+becomes visible, and reloads as soon as one is ready. Closing and reopening
+the app is enough to pick up a deploy.
+
+Removing the icon from an iPhone home screen can take that web app's storage
+with it. Anyone running device-only should export from Privacy & Security, or
+sign in, before deleting it.
+
 ### What HTTPS unlocks
 
 These only work on a real HTTPS origin, which is why a LAN address is not enough:
