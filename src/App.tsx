@@ -10,6 +10,7 @@ import { Tile } from './components/UI'
 import { Splash } from './screens/Splash'
 import { Onboarding } from './screens/Onboarding'
 import { Setup } from './screens/Setup'
+import { Account } from './screens/Account'
 import { SetPin } from './screens/SetPin'
 import { LockScreen } from './screens/LockScreen'
 import { Permissions } from './screens/Permissions'
@@ -166,6 +167,7 @@ function Shell() {
         <Route path="/" element={<Splash />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="/account" element={<Account />} />
         <Route path="/permissions" element={<Permissions />} />
 
         <Route path="/home" element={<Home onDrop={openDrop} />} />

@@ -6,6 +6,9 @@ import { buildSeedDrops } from './seed'
 import { nextOccurrence, toISO, todayISO } from './format'
 import { defaultLeadDays, rearm, runReminderSweep } from './reminders'
 import { clearFailures, createLock, NO_LOCK } from './lock'
+import { cloudConfigured, currentUser, supabase } from './supabase'
+import { adoptLocalDrops, resetSyncCursor, sync } from './sync'
+import type { User } from '@supabase/supabase-js'
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -61,6 +64,15 @@ interface State {
   resetEverything: () => Promise<void>
   sweepReminders: () => Promise<void>
 
+  // --- account ---
+  user: User | null
+  syncing: boolean
+  syncError: string | null
+  signUp: (email: string, password: string, name: string) => Promise<string | null>
+  signIn: (email: string, password: string) => Promise<string | null>
+  signOut: () => Promise<void>
+  syncNow: () => Promise<void>
+
   /** Whether the lock has been satisfied for this foreground session. */
   unlocked: boolean
   setUnlocked: (v: boolean) => void
@@ -111,6 +123,19 @@ export const useApp = create<State>((set, get) => ({
     }
 
     void get().sweepReminders()
+
+    if (cloudConfigured()) {
+      const user = await currentUser()
+      if (user) {
+        set({ user })
+        await get().syncNow()
+        set({ drops: await db.allDrops() })
+      }
+      // A token can expire or be revoked while the app is open.
+      supabase().auth.onAuthStateChange((_event, session) => {
+        set({ user: session?.user ?? null })
+      })
+    }
   },
 
   setToast(toast) {
@@ -136,7 +161,9 @@ export const useApp = create<State>((set, get) => ({
 
   async saveDrop(drop) {
     await db.putDrop(drop)
+    await db.queueChange(drop.id, 'put')
     set({ drops: [...get().drops.filter((d) => d.id !== drop.id), drop] })
+    void get().syncNow()
   },
 
   async commitPending(draft) {
@@ -185,8 +212,10 @@ export const useApp = create<State>((set, get) => ({
     }
 
     await db.putDrop(drop)
+    await db.queueChange(drop.id, 'put')
     get().setPending(null)
     set({ drops: [...get().drops, drop] })
+    void get().syncNow()
     return drop
   },
 
@@ -197,12 +226,18 @@ export const useApp = create<State>((set, get) => ({
     if (historyLabel) next = stamp(next, historyLabel)
     if (patch.date && patch.date !== current.date) rearm(id)
     await db.putDrop(next)
+    await db.queueChange(id, 'put')
     set({ drops: get().drops.map((d) => (d.id === id ? next : d)) })
+    void get().syncNow()
   },
 
   async removeDrop(id) {
+    const wasSample = get().drops.find((d) => d.id === id)?.sample
     await db.deleteDrop(id)
+    // Demo rows never went up, so there is nothing to tell the server about.
+    if (!wasSample) await db.queueChange(id, 'delete')
     set({ drops: get().drops.filter((d) => d.id !== id) })
+    if (!wasSample) void get().syncNow()
   },
 
   async setArchived(id, archived) {
@@ -269,6 +304,73 @@ export const useApp = create<State>((set, get) => ({
   async sweepReminders() {
     const { drops, settings } = get()
     await runReminderSweep(drops, settings)
+  },
+
+  user: null,
+  syncing: false,
+  syncError: null,
+
+  async signUp(email, password, name) {
+    if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
+    const { data, error } = await supabase().auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { name: name.trim() } },
+    })
+    if (error) return error.message
+    if (!data.user) return 'Check your email to confirm the account, then sign in.'
+
+    // Anything dropped before signing up belongs to this account now.
+    await adoptLocalDrops()
+    set({ user: data.user })
+    await get().patchSettings({ name: name.trim(), email: email.trim(), onboarded: true })
+    void get().syncNow()
+    return null
+  },
+
+  async signIn(email, password) {
+    if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
+    const { data, error } = await supabase().auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    if (error) return error.message
+
+    // A different person on this device must not inherit the last one's vault.
+    const previous = get().settings.email
+    if (previous && previous !== email.trim()) {
+      await db.wipeAll()
+      resetSyncCursor()
+      set({ drops: [] })
+    }
+
+    set({ user: data.user })
+    await get().patchSettings({ email: email.trim(), onboarded: true })
+    await get().syncNow()
+    set({ drops: await db.allDrops() })
+    return null
+  },
+
+  async signOut() {
+    if (cloudConfigured()) await supabase().auth.signOut().catch(() => {})
+    // The vault is the account's, not the device's — leaving it behind for the
+    // next person to open would be a leak.
+    await db.wipeAll()
+    resetSyncCursor()
+    clearFailures()
+    set({ user: null, drops: [], settings: DEFAULT_SETTINGS, unlocked: true })
+  },
+
+  async syncNow() {
+    const user = get().user
+    if (!user || !cloudConfigured() || get().syncing) return
+    set({ syncing: true })
+    const result = await sync(user.id)
+    set({
+      syncing: false,
+      syncError: result.error ?? null,
+      drops: result.pulled || result.deleted ? await db.allDrops() : get().drops,
+    })
   },
 
   unlocked: false,

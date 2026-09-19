@@ -16,20 +16,30 @@ interface LifeDropDB extends DBSchema {
     key: string
     value: unknown
   }
+  /** Local changes not yet accepted by the server. */
+  outbox: {
+    key: string
+    value: { id: string; op: 'put' | 'delete'; at: number }
+  }
 }
 
 let dbp: Promise<IDBPDatabase<LifeDropDB>> | null = null
 
 function db() {
   if (!dbp) {
-    dbp = openDB<LifeDropDB>('lifedrop', 1, {
-      upgrade(d) {
-        const drops = d.createObjectStore('drops', { keyPath: 'id' })
-        drops.createIndex('by-date', 'date')
-        drops.createIndex('by-category', 'category')
-        drops.createIndex('by-created', 'createdAt')
-        d.createObjectStore('blobs', { keyPath: 'id' })
-        d.createObjectStore('settings')
+    dbp = openDB<LifeDropDB>('lifedrop', 2, {
+      upgrade(d, oldVersion) {
+        if (oldVersion < 1) {
+          const drops = d.createObjectStore('drops', { keyPath: 'id' })
+          drops.createIndex('by-date', 'date')
+          drops.createIndex('by-category', 'category')
+          drops.createIndex('by-created', 'createdAt')
+          d.createObjectStore('blobs', { keyPath: 'id' })
+          d.createObjectStore('settings')
+        }
+        if (oldVersion < 2) {
+          d.createObjectStore('outbox', { keyPath: 'id' })
+        }
       },
     })
   }
@@ -66,6 +76,24 @@ export async function getBlob(id: string): Promise<Blob | null> {
   return rec?.blob ?? null
 }
 
+// --- outbox -----------------------------------------------------------------
+
+export async function queueChange(id: string, op: 'put' | 'delete'): Promise<void> {
+  await (await db()).put('outbox', { id, op, at: Date.now() })
+}
+
+export async function pendingChanges(): Promise<{ id: string; op: 'put' | 'delete'; at: number }[]> {
+  return (await db()).getAll('outbox')
+}
+
+export async function clearChange(id: string): Promise<void> {
+  await (await db()).delete('outbox', id)
+}
+
+export async function clearOutbox(): Promise<void> {
+  await (await db()).clear('outbox')
+}
+
 export async function loadSettings(): Promise<Partial<AppSettings> | null> {
   return ((await (await db()).get('settings', 'app')) as Partial<AppSettings>) ?? null
 }
@@ -87,5 +115,5 @@ export async function exportAll(): Promise<{ exportedAt: string; drops: Drop[]; 
 /** Settings > Delete account. Removes every drop, image and preference. */
 export async function wipeAll(): Promise<void> {
   const d = await db()
-  await Promise.all([d.clear('drops'), d.clear('blobs'), d.clear('settings')])
+  await Promise.all([d.clear('drops'), d.clear('blobs'), d.clear('settings'), d.clear('outbox')])
 }

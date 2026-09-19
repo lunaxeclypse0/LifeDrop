@@ -3,7 +3,8 @@ import { Illustration, type Art } from './Illustration'
 import { Icon } from './Icon'
 import { getBlob } from '../lib/db'
 import { Tile } from './UI'
-import type { Category } from '../lib/types'
+import type { Drop } from '../lib/types'
+import { cacheImage } from '../lib/sync'
 
 export function EmptyState({
   art,
@@ -75,32 +76,37 @@ export function OfflineBanner() {
  * than stock imagery.
  */
 export function DropPreview({
-  imageId,
-  fileName,
-  category,
+  drop,
   height = 190,
 }: {
-  imageId: string | null
-  fileName: string
-  category: Category
+  drop: Drop
   height?: number
 }) {
+  const { imageId, imagePath, fileName, category } = drop
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!imageId) return
     let revoked = false
     let made: string | null = null
-    void getBlob(imageId).then((blob) => {
+
+    void (async () => {
+      // Prefer the local copy; fall back to pulling it out of the bucket, which
+      // is the case on a second device that has never seen this drop's photo.
+      let blob = imageId ? await getBlob(imageId) : null
+      if (!blob && imagePath) {
+        const cached = await cacheImage(drop)
+        if (cached) blob = await getBlob(cached)
+      }
       if (!blob || revoked) return
       made = URL.createObjectURL(blob)
       setUrl(made)
-    })
+    })()
+
     return () => {
       revoked = true
       if (made) URL.revokeObjectURL(made)
     }
-  }, [imageId])
+  }, [imageId, imagePath, drop])
 
   const isImage = /\.(png|jpe?g|webp|gif|heic|avif)$/i.test(fileName) || !!url
 

@@ -60,7 +60,8 @@ export function Setup() {
               Set up LifeDrop
             </h2>
             <p className="body2" style={{ margin: '0 0 22px' }}>
-              No account, no sign-up. Everything you drop lives on this device.
+              This names the app for you. To back your drops up and reach them from another
+              device, add an account from Profile.
             </p>
           </>
         )}

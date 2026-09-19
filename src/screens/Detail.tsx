@@ -175,7 +175,7 @@ export function Detail() {
         </div>
 
         <SectionHead label="Original drop" />
-        <DropPreview imageId={drop.imageId} fileName={drop.fileName} category={drop.category} />
+        <DropPreview drop={drop} />
 
         <SectionHead label="History" />
         <div className="card">

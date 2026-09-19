@@ -4,6 +4,7 @@ import { Button, SectionHead, Tile, TopBar } from '../components/UI'
 import { Icon } from '../components/Icon'
 import { InstallRow } from '../components/InstallApp'
 import { liveDrops, useApp } from '../lib/store'
+import { cloudConfigured } from '../lib/supabase'
 import { pesoCompact } from '../lib/format'
 import type { IconName } from '../lib/icons'
 
@@ -20,6 +21,11 @@ export function Profile() {
   const navigate = useNavigate()
   const drops = useApp((s) => s.drops)
   const settings = useApp((s) => s.settings)
+  const user = useApp((s) => s.user)
+  const syncing = useApp((s) => s.syncing)
+  const syncError = useApp((s) => s.syncError)
+  const syncNow = useApp((s) => s.syncNow)
+  const signOut = useApp((s) => s.signOut)
 
   const stats = useMemo(() => {
     const live = liveDrops(drops)
@@ -89,6 +95,51 @@ export function Profile() {
           ))}
         </div>
 
+        {cloudConfigured() && (
+          <>
+            <SectionHead label="Account" />
+            <div className="rows">
+              {user ? (
+                <>
+                  <div className="row">
+                    <div className="mid">
+                      <div className="t">Signed in</div>
+                      <div className="d">
+                        {user.email} ·{' '}
+                        {syncing ? 'syncing…' : syncError ? `not synced: ${syncError}` : 'synced'}
+                      </div>
+                    </div>
+                    <Icon
+                      name={syncError ? 'alert' : 'check'}
+                      size={18}
+                      color={syncError ? 'var(--warning)' : 'var(--success)'}
+                      width={2.2}
+                    />
+                  </div>
+                  <button className="row" onClick={() => void syncNow()}>
+                    <div className="mid">
+                      <div className="t">Sync now</div>
+                      <div className="d">Push anything waiting and pull what is new</div>
+                    </div>
+                    <Icon name="refresh" size={18} color="var(--primary-ink)" />
+                  </button>
+                </>
+              ) : (
+                <button className="row" onClick={() => navigate('/account')}>
+                  <div className="mid">
+                    <div className="t">Sign in or create an account</div>
+                    <div className="d">
+                      Right now your drops live only on this device. An account backs them up and
+                      syncs them.
+                    </div>
+                  </div>
+                  <Icon name="chev" size={17} color="var(--muted)" />
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
         <SectionHead label="App" />
         <div className="rows">
           <InstallRow />
@@ -112,9 +163,22 @@ export function Profile() {
         <Button variant="secondary" icon="edit" onClick={() => navigate('/setup?edit=1')}>
           Edit profile
         </Button>
+        {user && (
+          <Button
+            variant="destructive"
+            icon="logout"
+            onClick={async () => {
+              await signOut()
+              navigate('/home', { replace: true })
+            }}
+          >
+            Sign out
+          </Button>
+        )}
 
         <p className="caption" style={{ textAlign: 'center', marginTop: 18 }}>
-          LifeDrop 1.0.0 — your drops stay on this device.
+          LifeDrop 1.0.0 —{' '}
+          {user ? 'your drops sync to your account.' : 'your drops stay on this device.'}
         </p>
       </div>
     </div>

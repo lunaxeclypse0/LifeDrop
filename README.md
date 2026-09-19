@@ -55,6 +55,8 @@ Nothing here is a mock-up. Every screen reads and writes the same store.
 | **Spending** | Six-month trend and per-category breakdown from your own drops. |
 | **Search** | Across title, merchant, reference, notes, category and file name. |
 | **Lock** | Real PIN (PBKDF2-SHA256, salted, never stored in the clear), escalating lockout after 5 wrong tries, optional Face ID / fingerprint via WebAuthn. |
+| **Accounts** | Optional Supabase auth. Each user's drops are isolated by row-level security. |
+| **Sync** | Offline-first: local write, outbox, flush when online. Originals go to a private bucket. |
 | **Data** | JSON export of everything; permanent delete. |
 | **Theme** | Light / dark / system, with a one-tap switch in the Home top bar. Honours `prefers-color-scheme` and `prefers-reduced-motion`. |
 | **First run** | Empty. No invented drops, no fake numbers — a new install shows the empty states and one thing to do. |
@@ -89,14 +91,35 @@ Three things can be said:
 never the answer — and `src/lib/assistant.ts` computes every figure on the device
 from the local store. Asking what you owe does not send your finances anywhere.
 
-### About accounts and the lock
+### About accounts
 
-There is no account and no server, so there is no sign-in — a password box would
-be theatre, since nothing could check it. First run sets up a **local profile**
-(name, optional email) and everything lives in this browser's storage on this one
-device. Nothing syncs.
+Accounts are optional. With no Supabase project connected the app is device-only
+and never offers a sign-in; with one, drops sync to the signed-in user.
 
-What actually protects the vault is **Settings > Privacy & Security > PIN lock**.
+**Setting it up**
+
+1. Create a project at [supabase.com](https://supabase.com) (free tier).
+2. Run `supabase/schema.sql` in the SQL editor. **Do this before anything else** —
+   it creates the tables *and* the row-level security.
+3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Settings → API), then redeploy.
+
+**Why the SQL file matters more than the key.** The anon key is public: it ships in
+the JavaScript bundle and anyone can read it. That is by design. The only thing
+standing between one user's bills and another's is the row-level security in that
+file, where every policy is scoped to `auth.uid()`. Without it, the app is not safe
+to hand to a second person.
+
+**How sync works.** The device stays the fast path — every screen reads IndexedDB,
+so the app opens instantly and works offline. Writes land locally first and go into
+an outbox that flushes when the network allows, so nothing the user does is blocked
+on a request. Conflicts resolve last-write-wins on `updatedAt`.
+
+Signing out wipes the local vault, because the drops belong to the account rather
+than the device and the next person to open the app should not find them.
+
+### About the lock
+
+What protects the vault on the device itself is **Settings > Privacy & Security > PIN lock**.
 The PIN is never stored; only a salted PBKDF2-SHA256 hash is. Five wrong tries
 starts a lockout that doubles from 30s. Face ID / Touch ID / Windows Hello can be
 enrolled as a faster path, with the PIN always available as fallback.
@@ -204,6 +227,10 @@ src/
     install.ts     PWA install prompt, per platform
     lock.ts        PIN hashing, attempt limiting, WebAuthn enrolment
     speech.ts      browser speech in and out
+    supabase.ts    client and row mapping
+    sync.ts        outbox, pull/push, image upload
+supabase/
+  schema.sql     tables, triggers and the row-level security policies
     seed.ts        sample vault, built on dates relative to first open
   components/      Icon, Brand, UI kit, DropCard, DropForm, PinPad, Sheet, Toast, States
   screens/         one file per screen

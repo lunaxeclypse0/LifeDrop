@@ -41,8 +41,10 @@ export interface Drop {
   notes: string
   /** Original file name of the drop. */
   fileName: string
-  /** Key into the `blobs` store — the user's original screenshot or photo. */
+  /** Key into the local `blobs` store — the original, cached on this device. */
   imageId: string | null
+  /** Path in the `drops` storage bucket, when the original has been synced. */
+  imagePath?: string | null
   /** Set when the AI was unsure about a field. */
   needsReview: boolean
   archived: boolean

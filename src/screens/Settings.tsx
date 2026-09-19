@@ -108,6 +108,7 @@ export function NotificationPrefs() {
 export function Privacy() {
   const navigate = useNavigate()
   const settings = useApp((s) => s.settings)
+  const user = useApp((s) => s.user)
   const resetEverything = useApp((s) => s.resetEverything)
   const disableLock = useApp((s) => s.disableLock)
   const setBiometricId = useApp((s) => s.setBiometricId)
@@ -142,7 +143,9 @@ export function Privacy() {
           <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
             <Icon name="shield" size={19} color="var(--primary-ink)" />
             <div className="body2" style={{ fontSize: 13.5 }}>
-              Your drops stay private. Review before saving. Delete your data anytime.
+              {user
+                ? 'Your drops are stored in your account and readable only by you. Review before saving. Delete your data anytime.'
+                : 'Your drops stay on this device. Review before saving. Delete your data anytime.'}
             </div>
           </div>
         </div>
@@ -237,8 +240,9 @@ export function Privacy() {
         </div>
 
         <p className="caption" style={{ marginTop: 16, lineHeight: 1.55 }}>
-          LifeDrop stores your drops in this browser's own storage. Clearing site data removes them
-          too, so export anything you want to keep.
+          {user
+            ? 'Signed in, your drops live in your account as well as on this device, so clearing site data no longer loses them. Deleting removes both.'
+            : "LifeDrop stores your drops in this browser's own storage. Clearing site data removes them too, so export anything you want to keep."}
         </p>
       </div>
 
