@@ -273,6 +273,81 @@ process.env.GEMINI_API_KEY = 'test-key'
   delete process.env.GEMINI_FALLBACK_MODEL
 }
 
+// --- Grok, the paid last resort -------------------------------------------
+// It spends real credit and receives a photo of somebody's bill, so the tests
+// that matter most are the ones proving it stays asleep.
+{
+  const hosts: string[] = []
+  globalThis.fetch = (async (url: string) => {
+    hosts.push(new URL(url).host)
+    return new Response(JSON.stringify({ error: 'quota' }), { status: 429 })
+  }) as typeof fetch
+  delete process.env.XAI_API_KEY
+  const res = await handler(post(IMG))
+  check('with no xAI key, nothing is sent to xAI', !hosts.some((h) => h.includes('x.ai')), hosts)
+  check('  and the daily limit is still reported', res.status === 429, res.status)
+}
+{
+  const hosts: string[] = []
+  globalThis.fetch = (async (url: string) => {
+    hosts.push(new URL(url).host)
+    return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
+  }) as typeof fetch
+  process.env.XAI_API_KEY = 'xai-secret'
+  await handler(post(IMG))
+  check('a working free model never reaches the paid one', !hosts.some((h) => h.includes('x.ai')), hosts)
+}
+{
+  globalThis.fetch = (async (url: string, init: { body: string }) => {
+    if (url.includes('x.ai')) {
+      const body = JSON.parse(init.body) as { messages: { content: { type: string }[] }[] }
+      const parts = body.messages[0].content.map((c) => c.type)
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  readable: 'yes', title: 'Meralco Bill', merchant: 'Meralco', amount: '3420.50',
+                  category: 'bill', date: '2026-09-30', time: '', repeat: 'monthly',
+                  remindDaysBefore: '3', reference: '', notes: parts.join('+'), confidence: '0.93',
+                  uncertain: [],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } }),
+      { status: 429 },
+    )
+  }) as unknown as typeof fetch
+
+  const res = await handler(post(IMG))
+  check('every free model out + a key -> Grok reads it', res.status === 200, res.status)
+  const b = (await res.json()) as Record<string, unknown>
+  check('  and its answer is coerced like any other', b.amount === 3420.5, b.amount)
+  check('  the same prompt and image are sent', b.notes === 'text+image_url', b.notes)
+  check('  the date survives', b.date === '2026-09-30', b.date)
+}
+{
+  // Grok failing must not turn a quota problem into a mystery.
+  globalThis.fetch = (async (url: string) => {
+    if (url.includes('x.ai')) {
+      return new Response('{"error":"credits exhausted, key xai-secret"}', { status: 403 })
+    }
+    return new Response(JSON.stringify({ error: { message: 'PerDay quota' } }), { status: 429 })
+  }) as unknown as typeof fetch
+  const res = await handler(post(IMG))
+  check('Grok failing falls back to the honest limit message', res.status === 429, res.status)
+  const raw = await res.text()
+  check('  and no xAI key leaks out', !raw.includes('xai-secret'), raw.slice(0, 120))
+  delete process.env.XAI_API_KEY
+}
+
 // --- thinking, which is what made a scan slow -----------------------------
 // The setting is spelled differently across model generations. Getting this
 // wrong is a hard 400, so the handler probes rather than assuming.

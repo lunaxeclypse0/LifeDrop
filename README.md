@@ -184,6 +184,8 @@ No credit card.
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
 | `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | The model tried first. Override if the id is retired. |
 | `GEMINI_FALLBACK_MODEL` | *(optional)* `gemini-3.5-flash-lite` | Used when the first is out of quota or gone. Set it to the same value as `GEMINI_MODEL` to disable the fallback. |
+| `XAI_API_KEY` | *(optional)* | A paid last resort. Unset means Grok is never called at all — see below before setting it. |
+| `XAI_MODEL` | *(optional)* `grok-4.6` | Which Grok model reads the drop. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
 before you set it will still use the mock.
@@ -271,6 +273,24 @@ Do not trust the numbers above — Google changes them without versioning, and
 they are no longer published as a table. The live figures for your own key are in
 [AI Studio](https://aistudio.google.com/rate-limit). Both models are env vars
 precisely because this will go stale.
+
+### The paid last resort
+
+`api/_grok.ts` adds xAI's Grok as a third step, reached only when every free
+model has refused. It is **off unless `XAI_API_KEY` is set**, and the tests
+assert that: with no key, nothing is sent to xAI, and a working free model never
+reaches it either.
+
+Before setting that key, two things are worth being clear about.
+
+Grok has **no free tier**. New accounts get a one-time credit that expires, so
+this spends real money once that is gone. At current prices a scan is a fraction
+of a peso, but it is not zero and there is no cap in the code.
+
+More importantly, what gets sent is **a photograph of somebody's bill**, account
+number included. xAI offers recurring credits in exchange for training on API
+requests; for this app that would mean handing over the user's financial
+documents, and enrolment is **permanent**. Leave it off.
 
 ### Using a different provider
 

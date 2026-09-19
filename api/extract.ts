@@ -9,6 +9,8 @@
  *   GEMINI_API_KEY   required — from https://aistudio.google.com/apikey
  *   GEMINI_MODEL     optional — the model tried first
  *   GEMINI_FALLBACK_MODEL  optional — used when the first is out of quota
+ *   XAI_API_KEY      optional — a paid last resort once every free model is out
+ *   XAI_MODEL        optional — which Grok model to use
  */
 
 /**
@@ -30,6 +32,7 @@ import {
   type Candidate,
   type ThinkMode,
 } from './_model'
+import { readWithGrok } from './_grok'
 
 const CATEGORIES = [
   'bill',
@@ -236,10 +239,25 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'upstream_unreachable', message: 'Could not reach the model.' }, 502)
   }
 
+  let out: Record<string, unknown>
+
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).split(key).join('[redacted]')
-    if (res.status === 429) return limitResponse(detail)
-    if (res.status === 404) {
+
+    // Every free model has refused. Grok has no free tier — it spends the
+    // account's credit and receives a photograph of somebody's bill — so it is
+    // reached only here, and only when a key has been deliberately set.
+    const paid = process.env.XAI_API_KEY || process.env.GROK_API_KEY
+    const grok =
+      paid && worthFallingBack(res.status)
+        ? await readWithGrok(paid, prompt(today), mime, data)
+        : null
+
+    if (grok?.ok) {
+      out = grok.out
+    } else if (res.status === 429) {
+      return limitResponse(detail)
+    } else if (res.status === 404) {
       return json(
         {
           error: 'model_unavailable',
@@ -248,32 +266,32 @@ export default async function handler(request: Request): Promise<Response> {
         },
         502,
       )
+    } else {
+      return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 400) }, 502)
     }
-    return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 400) }, 502)
-  }
+  } else {
+    const payload = (await res.json()) as { candidates?: Candidate[] }
+    const candidate = payload.candidates?.[0]
+    const text = answerText(candidate)
+    if (!text.trim()) {
+      return json(
+        {
+          error: 'empty_response',
+          message:
+            candidate?.finishReason === 'MAX_TOKENS'
+              ? 'The model ran out of room before it answered.'
+              : 'The model returned nothing.',
+          finishReason: candidate?.finishReason ?? '',
+        },
+        502,
+      )
+    }
 
-  const payload = (await res.json()) as { candidates?: Candidate[] }
-  const candidate = payload.candidates?.[0]
-  const text = answerText(candidate)
-  if (!text.trim()) {
-    return json(
-      {
-        error: 'empty_response',
-        message:
-          candidate?.finishReason === 'MAX_TOKENS'
-            ? 'The model ran out of room before it answered.'
-            : 'The model returned nothing.',
-        finishReason: candidate?.finishReason ?? '',
-      },
-      502,
-    )
-  }
-
-  let out: Record<string, unknown>
-  try {
-    out = JSON.parse(text) as Record<string, unknown>
-  } catch {
-    return json({ error: 'bad_model_json', detail: text.slice(0, 400) }, 502)
+    try {
+      out = JSON.parse(text) as Record<string, unknown>
+    } catch {
+      return json({ error: 'bad_model_json', detail: text.slice(0, 400) }, 502)
+    }
   }
 
   if (out.readable === 'no') {
