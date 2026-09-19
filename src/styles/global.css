@@ -97,7 +97,8 @@ a { color: var(--primary-ink); text-decoration: none; }
 .topbar {
   flex: none;
   padding: calc(var(--safe-top) + 14px) var(--gutter) 10px;
-  display: flex; align-items: center; gap: 12px;
+  /* 12px between 44px buttons reads as one run of boxes; 15px separates them. */
+  display: flex; align-items: center; gap: 15px;
   background: var(--bg);
 }
 .topbar.bordered { border-bottom: 1px solid var(--border); }
@@ -114,7 +115,7 @@ a { color: var(--primary-ink); text-decoration: none; }
 
 .iconbtn {
   flex: none; width: 44px; height: 44px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center; line-height: 0;
   background: var(--surface); border: 1px solid var(--border); color: var(--text);
 }
 .iconbtn.plain { background: none; border-color: transparent; }

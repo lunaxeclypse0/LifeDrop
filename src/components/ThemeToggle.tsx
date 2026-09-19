@@ -27,9 +27,9 @@ export function ThemeToggle() {
       aria-pressed={dark}
       onClick={() => void patchSettings({ theme: dark ? 'light' : 'dark' })}
     >
-      <span className="theme-swap">
-        <Icon name={dark ? 'sun' : 'moon'} size={20} />
-      </span>
+      {/* No wrapper span: an inline element puts the SVG on the text baseline,
+          which lifted the icon a couple of pixels above centre. */}
+      <Icon name={dark ? 'sun' : 'moon'} size={20} />
     </button>
   )
 }

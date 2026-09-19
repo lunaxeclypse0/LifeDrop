@@ -23,7 +23,7 @@ export type Question =
   | 'none'
 
 export interface VoiceIntent {
-  kind: 'ask' | 'drop' | 'search' | 'unknown'
+  kind: 'ask' | 'answer' | 'drop' | 'search' | 'unknown'
   transcript: string
   question: Question
   period: Period
@@ -252,20 +252,32 @@ function dueWord(iso: string): string {
   return `due ${longDate(iso)}`
 }
 
-/** The examples shown under the mic before anyone has spoken. */
-export const VOICE_EXAMPLES = [
-  'How much have I spent this month?',
-  'What do I still owe?',
-  'What is due this week?',
-  'When is my Meralco bill?',
-  'What are my subscriptions?',
-  'Meralco bill 3420 due September 30',
-  'Find my Nike receipt',
-]
-
 /** Used only for the on-screen summary line, never spoken. */
 export function shortSummary(a: Answer): string {
   return a.items?.length ? `${a.items.length} shown` : ''
 }
 
 export { peso }
+
+/**
+ * A compact view of the vault for the assistant, one line per drop. Only sent
+ * when the user has allowed it in Privacy & Security — it is the difference
+ * between answering six fixed questions and answering whatever they ask.
+ */
+export function summarise(drops: Drop[], limit = 300): string {
+  return liveDrops(drops)
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit)
+    .map((d) =>
+      [
+        d.title,
+        d.merchant || '-',
+        d.amount === null ? '-' : d.amount.toFixed(2),
+        d.category,
+        d.date,
+        d.status,
+      ].join(' | '),
+    )
+    .join('\n')
+}

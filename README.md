@@ -52,7 +52,8 @@ Nothing here is a mock-up. Every screen reads and writes the same store.
 | **Inbox** | Category filters, sort, swipe-to-archive with undo. |
 | **Calendar** | Real month grid with category dots, day agenda, and a grouped agenda view. |
 | **Vault** | Per-category browsing, list/grid, expiring-soon, archive. |
-| **Spending** | Six-month trend and per-category breakdown from your own drops. |
+| **Spending** | Six-month trend, per-category breakdown, plus year-to-date and all-time totals. |
+| **Originals** | Every captured photo opens full screen from the item, with a save-a-copy link. |
 | **Search** | Across title, merchant, reference, notes, category and file name. |
 | **Lock** | Real PIN (PBKDF2-SHA256, salted, never stored in the clear), escalating lockout after 5 wrong tries, optional Face ID / fingerprint via WebAuthn. |
 | **Accounts** | Optional Supabase auth. Each user's drops are isolated by row-level security. |
@@ -87,9 +88,21 @@ Three things can be said:
 | "Meralco bill 3420 due September 30" | the Review screen, pre-filled |
 | "Find my Nike receipt" | Search |
 
-**Only the transcript reaches the model.** `/api/voice` returns *what was asked* —
-never the answer — and `src/lib/assistant.ts` computes every figure on the device
-from the local store. Asking what you owe does not send your finances anywhere.
+There are two modes, switched in **Settings → Privacy & Security → Let it read
+your drops**:
+
+- **On (default).** A compact summary of the vault — title, merchant, amount,
+  category, date, status, one line each — goes with the question, so the
+  assistant can answer anything rather than six fixed questions. Images never
+  go, and nothing is stored by the model.
+- **Off.** Only the words are sent. `/api/voice` returns *what was asked* and
+  `src/lib/assistant.ts` works the figures out on the device, so nothing about
+  the user's money leaves it. Fewer questions, complete privacy.
+
+Spoken replies need one piece of care: iOS only lets `speechSynthesis` start
+inside a user gesture, and an answer arrives after an await. `primeSpeech()`
+speaks a silent utterance on the mic tap to unlock it for the session —
+without that, replies were never heard on iPhone.
 
 ### About accounts
 

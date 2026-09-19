@@ -147,6 +147,25 @@ function pickVoice(): SpeechSynthesisVoice | null {
   )
 }
 
+/**
+ * iOS only lets speechSynthesis start from inside a user gesture, and an answer
+ * arrives after an await — by then the gesture is long over and `speak()` is
+ * silently ignored. Speaking one empty utterance on the tap itself unlocks it
+ * for the rest of the session. This is why replies were never heard on iPhone.
+ */
+let unlocked = false
+export function primeSpeech(): void {
+  if (unlocked || !voiceOutputSupported()) return
+  try {
+    const u = new SpeechSynthesisUtterance('')
+    u.volume = 0
+    speechSynthesis.speak(u)
+    unlocked = true
+  } catch {
+    /* nothing to unlock */
+  }
+}
+
 export function speak(text: string, opts: { onEnd?: () => void } = {}): void {
   if (!voiceOutputSupported() || !text.trim()) {
     opts.onEnd?.()

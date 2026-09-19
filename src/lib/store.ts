@@ -16,7 +16,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Blank until the user says who they are. Nothing is invented for them.
   name: '',
   email: '',
-  prefs: { bills: true, events: true, renew: true, review: false, quiet: true, hideOnLock: false },
+  prefs: {
+    bills: true,
+    events: true,
+    renew: true,
+    review: false,
+    quiet: true,
+    hideOnLock: false,
+    assistantReadsDrops: true,
+  },
   lock: NO_LOCK,
 }
 

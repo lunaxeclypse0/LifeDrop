@@ -4,7 +4,7 @@ import { EmptyState } from '../components/States'
 import { SectionHead, TopBar, catColor } from '../components/UI'
 import { Icon } from '../components/Icon'
 import { outstandingTotal, useApp } from '../lib/store'
-import { monthLabel, peso } from '../lib/format'
+import { monthLabel, peso, shortDate } from '../lib/format'
 import { CATEGORIES, CATEGORY_ORDER, type Category } from '../lib/types'
 
 /**
@@ -84,6 +84,22 @@ export function Spending() {
   }, [selected.total])
 
   const hasAny = months.some((m) => m.total > 0)
+
+  // "How much this month" is only half the question; people also want the year
+  // and the running total since they started.
+  const totals = useMemo(() => {
+    const paid = drops
+      .filter((d) => !d.archived && d.amount)
+      .filter((d) => d.category === 'receipt' || d.status === 'paid')
+    const year = String(new Date().getFullYear())
+    return {
+      year: paid.filter((d) => d.date.startsWith(year)).reduce((s, d) => s + (d.amount ?? 0), 0),
+      yearCount: paid.filter((d) => d.date.startsWith(year)).length,
+      all: paid.reduce((s, d) => s + (d.amount ?? 0), 0),
+      allCount: paid.length,
+      since: paid.length ? paid.map((d) => d.date).sort()[0] : null,
+    }
+  }, [drops])
   // Scanned-but-unpaid bills are real money the user is tracking. Without this
   // the screen reads "nothing tracked yet" right after they scanned three.
   const owed = useMemo(() => outstandingTotal(drops), [drops])
@@ -125,6 +141,27 @@ export function Spending() {
               </div>
               <div className="caption" style={{ marginTop: 2 }}>
                 across {selected.items.length} item{selected.items.length === 1 ? '' : 's'}
+              </div>
+            </div>
+
+            <div className="grid2" style={{ marginTop: 12 }}>
+              <div className="card" style={{ padding: 15 }}>
+                <div className="seclabel">This year</div>
+                <div className="num" style={{ fontSize: 21, marginTop: 5 }}>
+                  {peso(totals.year)}
+                </div>
+                <div className="caption" style={{ marginTop: 1 }}>
+                  {totals.yearCount} item{totals.yearCount === 1 ? '' : 's'}
+                </div>
+              </div>
+              <div className="card" style={{ padding: 15 }}>
+                <div className="seclabel">All time</div>
+                <div className="num" style={{ fontSize: 21, marginTop: 5 }}>
+                  {peso(totals.all)}
+                </div>
+                <div className="caption" style={{ marginTop: 1 }}>
+                  {totals.since ? `since ${shortDate(totals.since)}` : '—'}
+                </div>
               </div>
             </div>
 

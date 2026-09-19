@@ -109,6 +109,7 @@ export function Privacy() {
   const navigate = useNavigate()
   const settings = useApp((s) => s.settings)
   const user = useApp((s) => s.user)
+  const setPref = useApp((s) => s.setPref)
   const resetEverything = useApp((s) => s.resetEverything)
   const disableLock = useApp((s) => s.disableLock)
   const setBiometricId = useApp((s) => s.setBiometricId)
@@ -212,6 +213,29 @@ export function Privacy() {
             controls this computer.
           </p>
         )}
+
+        <SectionHead label="Voice assistant" />
+        <div className="rows">
+          <div className="row">
+            <div className="mid">
+              <div className="t">Let it read your drops</div>
+              <div className="d">
+                {settings.prefs.assistantReadsDrops
+                  ? 'On — it can answer anything about what you saved, because a summary of your drops is sent with the question.'
+                  : 'Off — only your words are sent. It can still answer the common questions, worked out on this device.'}
+              </div>
+            </div>
+            <Toggle
+              on={settings.prefs.assistantReadsDrops}
+              onChange={(v) => void setPref('assistantReadsDrops', v)}
+              label="Let the assistant read your drops"
+            />
+          </div>
+        </div>
+        <p className="caption" style={{ marginTop: 10, lineHeight: 1.55 }}>
+          Titles, merchants, amounts, dates and statuses go with the question when this is on.
+          Images never do, and nothing is stored by the model.
+        </p>
 
         <SectionHead label="Your data" />
         <div className="rows">

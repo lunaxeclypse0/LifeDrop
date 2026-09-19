@@ -9,7 +9,7 @@
  *   npm run test:voice
  */
 import handler from '../api/voice'
-import { answer, type VoiceIntent } from '../src/lib/assistant'
+import { answer, summarise, type VoiceIntent } from '../src/lib/assistant'
 import type { Drop } from '../src/lib/types'
 
 let passed = 0
@@ -134,6 +134,25 @@ const ask = (over: Partial<VoiceIntent>): VoiceIntent => ({
 {
   const a = answer(ask({ question: 'spend_total' }), [])
   check('an empty vault says so instead of zero', a.speech.includes('not saved anything'), a.speech)
+}
+
+// ---------------------------------------------------------------------------
+// free-form answers, and what is sent to get them
+// ---------------------------------------------------------------------------
+
+{
+  stub({ kind: 'answer', say: 'You spent the most at Nike Park, 4,295 pesos.' })
+  const b = (await (await handler(post('where did most of my money go'))).json()) as VoiceIntent
+  check('routes an open question to answer', b.kind === 'answer', b.kind)
+  check('  carries the spoken reply', /Nike Park/.test(b.say), b.say)
+}
+{
+  const lines = summarise(DROPS).split('\n')
+  check('summary is one line per drop', lines.length === DROPS.length, lines.length)
+  check('  carries what a question needs', lines[0].split(' | ').length === 6, lines[0])
+  check('  newest first', lines[0].includes('Passport'), lines[0])
+  check('  leaks no ids, urls or image data', !/imageId|http|base64/.test(summarise(DROPS)))
+  check('  respects the cap', summarise(DROPS, 2).split('\n').length === 2)
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

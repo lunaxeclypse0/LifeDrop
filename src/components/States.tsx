@@ -84,6 +84,7 @@ export function DropPreview({
 }) {
   const { imageId, imagePath, fileName, category } = drop
   const [url, setUrl] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let revoked = false
@@ -110,6 +111,57 @@ export function DropPreview({
 
   const isImage = /\.(png|jpe?g|webp|gif|heic|avif)$/i.test(fileName) || !!url
 
+  // The whole point of keeping the original is being able to read it. A 190px
+  // strip is a thumbnail, so tapping opens it full screen.
+  if (url) {
+    return (
+      <>
+        <button
+          onClick={() => setOpen(true)}
+          aria-label={`View ${fileName} full screen`}
+          style={{
+            position: 'relative',
+            display: 'block',
+            width: '100%',
+            height,
+            borderRadius: 16,
+            overflow: 'hidden',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <img
+            src={url}
+            alt={`Original drop: ${fileName}`}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+          />
+          <span
+            style={{
+              position: 'absolute',
+              right: 10,
+              bottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 11px',
+              borderRadius: 999,
+              background: 'rgba(8, 13, 24, .72)',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <Icon name="eye" size={14} color="#fff" width={2} />
+            Tap to view
+          </span>
+        </button>
+
+        {open && <Lightbox url={url} fileName={fileName} onClose={() => setOpen(false)} />}
+      </>
+    )
+  }
+
   return (
     <div
       style={{
@@ -124,13 +176,7 @@ export function DropPreview({
         justifyContent: 'center',
       }}
     >
-      {url ? (
-        <img
-          src={url}
-          alt={`Original drop: ${fileName}`}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-        />
-      ) : (
+      {(
         <div style={{ textAlign: 'center', padding: 16 }}>
           <Tile category={category} size="lg" />
           <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700 }}>{fileName}</div>
@@ -139,6 +185,89 @@ export function DropPreview({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+/**
+ * Full-screen view of the original, with pinch-zoom left to the browser. A
+ * receipt photographed at arm's length is unreadable at thumbnail size, so
+ * this is the difference between keeping the image and being able to use it.
+ */
+function Lightbox({ url, fileName, onClose }: { url: string; fileName: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={fileName}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 80,
+        // Fully opaque: at 96% the buttons underneath showed through and the
+        // photo looked like it was floating over the page.
+        background: '#05070E',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'fadeIn 200ms ease both',
+      }}
+    >
+      <div
+        style={{
+          flex: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: 'calc(var(--safe-top) + 14px) var(--gutter) 10px',
+        }}
+      >
+        <button
+          className="iconbtn"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ background: 'rgba(255,255,255,.1)', borderColor: 'transparent', color: '#fff' }}
+        >
+          <Icon name="close" size={20} />
+        </button>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            color: '#fff',
+            fontSize: 13.5,
+            fontWeight: 600,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {fileName}
+        </span>
+        <a
+          href={url}
+          download={fileName}
+          className="iconbtn"
+          aria-label="Save a copy"
+          style={{ background: 'rgba(255,255,255,.1)', borderColor: 'transparent', color: '#fff' }}
+        >
+          <Icon name="download" size={20} />
+        </a>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 12px 20px' }}>
+        <img
+          src={url}
+          alt={fileName}
+          style={{ width: '100%', height: 'auto', borderRadius: 12, display: 'block' }}
+        />
+      </div>
     </div>
   )
 }

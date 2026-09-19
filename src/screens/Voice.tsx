@@ -5,8 +5,16 @@ import { DropCard } from '../components/DropCard'
 import { Ripples } from '../components/Brand'
 import { Button, TopBar } from '../components/UI'
 import { useApp } from '../lib/store'
-import { listen, speak, stopSpeaking, voiceInputSupported, voiceOutputSupported, type Listener } from '../lib/speech'
-import { answer, VOICE_EXAMPLES, type Answer, type VoiceIntent } from '../lib/assistant'
+import {
+  listen,
+  primeSpeech,
+  speak,
+  stopSpeaking,
+  voiceInputSupported,
+  voiceOutputSupported,
+  type Listener,
+} from '../lib/speech'
+import { answer, summarise, type Answer, type VoiceIntent } from '../lib/assistant'
 import { todayISO } from '../lib/format'
 import type { Extraction } from '../lib/types'
 
@@ -23,6 +31,7 @@ const ERRORS: Record<string, string> = {
 export function Voice() {
   const navigate = useNavigate()
   const drops = useApp((s) => s.drops)
+  const canRead = useApp((s) => s.settings.prefs.assistantReadsDrops)
   const setPending = useApp((s) => s.setPending)
 
   const [phase, setPhase] = useState<Phase>('idle')
@@ -71,6 +80,14 @@ export function Voice() {
         return
       }
 
+      // The model answered from the vault itself — nothing left to compute.
+      if (intent.kind === 'answer' && intent.say) {
+        setReply({ speech: intent.say })
+        setPhase('answered')
+        if (!muted) speak(intent.say)
+        return
+      }
+
       if (intent.kind === 'unknown') {
         const say = intent.say || 'I can tell you what you have spent, what you owe, or what is coming up.'
         setReply({ speech: say })
@@ -94,7 +111,13 @@ export function Voice() {
         const res = await fetch('/api/voice', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ transcript, today: todayISO() }),
+          body: JSON.stringify({
+            transcript,
+            today: todayISO(),
+            // Only when the user has allowed it; without this the model gets
+            // the words and nothing else.
+            summary: canRead ? summarise(drops) : undefined,
+          }),
         })
         if (res.status === 503) throw new Error('Voice needs the AI key set on the server.')
         if (res.status === 429) throw new Error('The free limit was reached. Try again in a minute.')
@@ -105,10 +128,12 @@ export function Voice() {
         setPhase('error')
       }
     },
-    [route],
+    [route, canRead, drops],
   )
 
   const start = () => {
+    // Must happen inside this tap, not after the answer comes back.
+    primeSpeech()
     stopSpeaking()
     setHeard('')
     setReply(null)
@@ -285,19 +310,12 @@ export function Voice() {
           </div>
         )}
 
-        {(phase === 'idle' || phase === 'error') && (
-          <div style={{ marginTop: 10 }}>
-            <div className="seclabel" style={{ marginBottom: 10, textAlign: 'center' }}>
-              Try saying
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {VOICE_EXAMPLES.map((e) => (
-                <span key={e} className="chip" style={{ cursor: 'default' }}>
-                  {e}
-                </span>
-              ))}
-            </div>
-          </div>
+        {phase === 'idle' && (
+          <p className="caption" style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
+            {canRead
+              ? 'Ask anything about what you have saved, or say a new drop out loud. Your drops are sent with the question — turn that off in Privacy & Security.'
+              : 'Ask what you spent, what you owe or what is due, and say new drops out loud. Only your words are sent; the figures are worked out here.'}
+          </p>
         )}
 
         {busy && (

@@ -99,6 +99,8 @@ export interface AppSettings {
     review: boolean
     quiet: boolean
     hideOnLock: boolean
+    /** Let the assistant read the vault so it can answer open questions. */
+    assistantReadsDrops: boolean
   }
   /** PIN + optional biometric gate. See lib/lock.ts for what it does and does not protect. */
   lock: LockConfig

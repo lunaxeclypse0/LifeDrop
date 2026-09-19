@@ -1,10 +1,15 @@
 /**
- * POST /api/voice — turns a spoken sentence into an intent.
+ * POST /api/voice — turns a spoken sentence into an intent, and optionally
+ * answers it.
  *
- * Only the transcript is sent here. The user's drops, amounts and dates never
- * leave their device: for a question this returns *what was asked*, and the
- * app computes the answer locally from its own store. That keeps the promise
- * the app makes on its own privacy screen.
+ * Two modes, chosen by the user in Privacy & Security:
+ *
+ * - Without `summary`, only the transcript is sent. The reply says *what was
+ *   asked* and the app computes the figures locally, so nothing about the
+ *   user's money leaves their device.
+ * - With `summary`, a compact view of their drops is included so the model can
+ *   answer questions the fixed set does not cover. That is more capable and
+ *   less private, which is why it is a setting and not a default assumption.
  *
  * Env: same key as /api/extract.
  */
@@ -15,7 +20,7 @@ const DEFAULT_MODEL = 'gemini-3.6-flash'
 
 const CATEGORIES = ['bill', 'receipt', 'booking', 'subscription', 'warranty', 'document', 'event'] as const
 const REPEATS = ['none', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'] as const
-const KINDS = ['ask', 'drop', 'search', 'unknown'] as const
+const KINDS = ['ask', 'answer', 'drop', 'search', 'unknown'] as const
 const QUESTIONS = [
   'spend_total', // how much have I spent
   'owed_total', // how much do I still owe
@@ -43,7 +48,7 @@ const SCHEMA = {
     time: { type: 'STRING', description: 'HH:MM 24-hour. Empty if not said.' },
     repeat: { type: 'STRING', enum: [...REPEATS] },
     reference: { type: 'STRING' },
-    say: { type: 'STRING', description: 'For unknown only: one short sentence back to the user.' },
+    say: { type: 'STRING', description: 'For answer and unknown: what to say back, out loud.' },
   },
   required: ['kind'],
 } as const
@@ -55,7 +60,7 @@ The speaker may mix English and Tagalog. Amounts are pesos and may be spoken in 
 
 Choose exactly one "kind":
 
-"ask" — they want to know something about what they already saved.
+"ask" — they want to know something the app can work out itself.
   Set "question" to one of:
     spend_total    how much have I spent / total cost / gastos
     owed_total     how much do I still owe / unpaid / babayaran
@@ -82,6 +87,24 @@ Prefer "ask" over "search" when they want a number or a summary rather than a li
 Prefer "drop" only when they clearly describe a NEW thing with at least a name.`
 }
 
+function withData(today: string, summary: string): string {
+  return `${prompt(today)}
+
+You have also been given the person's saved items below. When their question is
+about this data but does not fit one of the "ask" questions above, use "answer"
+instead and put the reply in "say".
+
+Rules for "say":
+- Speak it aloud, so no markdown, no bullet points, no currency symbols. Write
+  amounts as "3,420 pesos".
+- Two or three sentences at most. Lead with the number or the fact they asked for.
+- Only state what the data shows. If it is not there, say so plainly.
+- Today is ${today}; work out "last month", "this week" and so on from that.
+
+Their saved items, one per line, as title | merchant | amount | category | date | status:
+${summary}`
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 }
@@ -105,10 +128,14 @@ export default async function handler(request: Request): Promise<Response> {
   if (!key) return json({ error: 'not_configured' }, 503)
 
   let transcript = ''
+  let summary = ''
   let today = new Date().toISOString().slice(0, 10)
   try {
-    const body = (await request.json()) as { transcript?: string; today?: string }
+    const body = (await request.json()) as { transcript?: string; today?: string; summary?: string }
     transcript = str(body.transcript).slice(0, 500)
+    // Bounded so a large vault cannot blow past the model's context or the
+    // free tier's token budget.
+    summary = str(body.summary).slice(0, 24000)
     if (body.today && /^\d{4}-\d{2}-\d{2}$/.test(body.today)) today = body.today
   } catch {
     return json({ error: 'bad_request', message: 'Expected JSON.' }, 400)
@@ -124,7 +151,16 @@ export default async function handler(request: Request): Promise<Response> {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: `${prompt(today)}\n\nThey said: "${transcript}"` }] }],
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `${summary ? withData(today, summary) : prompt(today)}\n\nThey said: "${transcript}"`,
+                },
+              ],
+            },
+          ],
           generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
         }),
       },
