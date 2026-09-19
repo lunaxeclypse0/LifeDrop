@@ -16,7 +16,7 @@
 do $$
 declare
   prof_rows  bigint;
-  prof_cols  int;
+  prof_shape text;
   had_trigger boolean;
 begin
   -- ---------------------------------------------------------------- drops --
@@ -30,18 +30,19 @@ begin
   -- ------------------------------------------------------------- profiles --
   if to_regclass('public.profiles') is not null then
     execute 'select count(*) from public.profiles' into prof_rows;
-    select count(*) into prof_cols
+
+    -- Match the exact column set, not just how many there are. A count alone
+    -- would happily drop somebody else's four-column table.
+    select string_agg(column_name, ',' order by column_name) into prof_shape
       from information_schema.columns
       where table_schema = 'public' and table_name = 'profiles';
 
-    -- LifeDrop's profiles has exactly four columns: id, name, preferences,
-    -- updated_at. Anything else, or any row at all, means it is not mine.
-    if prof_rows = 0 and prof_cols = 4 then
+    if prof_rows = 0 and prof_shape = 'id,name,preferences,updated_at' then
       drop table public.profiles cascade;
-      raise notice 'REMOVED  table public.profiles (empty, matched LifeDrop shape)';
+      raise notice 'REMOVED  table public.profiles (empty, and its columns are exactly LifeDrop''s)';
     else
-      raise notice 'KEPT     table public.profiles — % row(s), % column(s). This is not LifeDrop''s; only its policies were removed.',
-        prof_rows, prof_cols;
+      raise notice 'KEPT     table public.profiles — % row(s), columns: %. Not LifeDrop''s; only its policies were removed.',
+        prof_rows, prof_shape;
       drop policy if exists "profiles are private to their owner"  on public.profiles;
       drop policy if exists "profiles are inserted by their owner" on public.profiles;
       drop policy if exists "profiles are updated by their owner"  on public.profiles;
