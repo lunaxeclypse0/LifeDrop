@@ -101,6 +101,11 @@ and never offers a sign-in; with one, drops sync to the signed-in user.
 1. Create a project at [supabase.com](https://supabase.com) (free tier).
 2. Run `supabase/schema.sql` in the SQL editor. **Do this before anything else** —
    it creates the tables *and* the row-level security.
+
+   Use a project of its own. The file creates a `profiles` table and an
+   `on_auth_user_created` trigger on `auth.users`; both names are common, so
+   running it in a project that already has them will overwrite them.
+   `supabase/uninstall.sql` backs the whole thing out if that happens.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Settings → API), then redeploy.
 
 **Why the SQL file matters more than the key.** The anon key is public: it ships in
@@ -231,6 +236,7 @@ src/
     sync.ts        outbox, pull/push, image upload
 supabase/
   schema.sql     tables, triggers and the row-level security policies
+  uninstall.sql  removes them again, cautiously, if run in the wrong project
     seed.ts        sample vault, built on dates relative to first open
   components/      Icon, Brand, UI kit, DropCard, DropForm, PinPad, Sheet, Toast, States
   screens/         one file per screen
