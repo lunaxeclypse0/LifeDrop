@@ -9,7 +9,9 @@
  *   GEMINI_API_KEY   required — from https://aistudio.google.com/apikey
  *   GEMINI_MODEL     optional — the model tried first
  *   GEMINI_FALLBACK_MODEL  optional — used when the first is out of quota
- *   XAI_API_KEY      optional — a paid last resort once every free model is out
+ *   GROQ_API_KEY     optional — a second free reader, used when Gemini is out
+ *   GROQ_MODEL       optional — which Groq vision model to use
+ *   XAI_API_KEY      optional — a PAID last resort, after every free one
  *   XAI_MODEL        optional — which Grok model to use
  */
 
@@ -32,7 +34,7 @@ import {
   type Candidate,
   type ThinkMode,
 } from './_model'
-import { readWithGrok } from './_grok'
+import { providers, readWithProvider } from './_openai'
 
 const CATEGORIES = [
   'bill',
@@ -244,17 +246,22 @@ export default async function handler(request: Request): Promise<Response> {
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).split(key).join('[redacted]')
 
-    // Every free model has refused. Grok has no free tier — it spends the
-    // account's credit and receives a photograph of somebody's bill — so it is
-    // reached only here, and only when a key has been deliberately set.
-    const paid = process.env.XAI_API_KEY || process.env.GROK_API_KEY
-    const grok =
-      paid && worthFallingBack(res.status)
-        ? await readWithGrok(paid, prompt(today), mime, data)
-        : null
+    // Gemini has refused. Hand the drop to whatever else is configured, free
+    // providers first — see providers(). With none configured this loop does
+    // nothing, which is the default.
+    let relay: Record<string, unknown> | null = null
+    if (worthFallingBack(res.status)) {
+      for (const provider of providers()) {
+        const reading = await readWithProvider(provider, prompt(today), mime, data)
+        if (reading.ok) {
+          relay = reading.out
+          break
+        }
+      }
+    }
 
-    if (grok?.ok) {
-      out = grok.out
+    if (relay) {
+      out = relay
     } else if (res.status === 429) {
       return limitResponse(detail)
     } else if (res.status === 404) {

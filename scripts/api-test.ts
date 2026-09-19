@@ -273,78 +273,141 @@ process.env.GEMINI_API_KEY = 'test-key'
   delete process.env.GEMINI_FALLBACK_MODEL
 }
 
-// --- Grok, the paid last resort -------------------------------------------
-// It spends real credit and receives a photo of somebody's bill, so the tests
-// that matter most are the ones proving it stays asleep.
+// --- the providers that take over when Gemini is out ----------------------
+// One of them spends real money and both receive a photograph of somebody's
+// bill, so the tests that matter most are the ones proving they stay asleep.
+const geminiOut = () =>
+  new Response(
+    JSON.stringify({ error: { message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } }),
+    { status: 429 },
+  )
+
+const reads = (extra: Record<string, unknown> = {}) =>
+  new Response(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              readable: 'yes', title: 'Meralco Bill', merchant: 'Meralco', amount: '3420.50',
+              category: 'bill', date: '2026-09-30', time: '', repeat: 'monthly',
+              remindDaysBefore: '3', reference: '', notes: '', confidence: '0.93',
+              uncertain: [], ...extra,
+            }),
+          },
+        },
+      ],
+    }),
+    { status: 200 },
+  )
+
+const hostsOf = (log: string[]) => log.join(' ')
+
 {
-  const hosts: string[] = []
-  globalThis.fetch = (async (url: string) => {
-    hosts.push(new URL(url).host)
-    return new Response(JSON.stringify({ error: 'quota' }), { status: 429 })
-  }) as typeof fetch
+  delete process.env.GROQ_API_KEY
   delete process.env.XAI_API_KEY
+  const log: string[] = []
+  globalThis.fetch = (async (url: string) => {
+    log.push(new URL(url).host)
+    return geminiOut()
+  }) as typeof fetch
   const res = await handler(post(IMG))
-  check('with no xAI key, nothing is sent to xAI', !hosts.some((h) => h.includes('x.ai')), hosts)
-  check('  and the daily limit is still reported', res.status === 429, res.status)
+  check('with no extra keys, nothing leaves Google', !/groq|x\.ai/.test(hostsOf(log)), log)
+  check('  and the daily limit is still reported honestly', res.status === 429, res.status)
 }
 {
-  const hosts: string[] = []
+  process.env.GROQ_API_KEY = 'groq-secret'
+  process.env.XAI_API_KEY = 'xai-secret'
+  const log: string[] = []
   globalThis.fetch = (async (url: string) => {
-    hosts.push(new URL(url).host)
+    log.push(new URL(url).host)
     return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
   }) as typeof fetch
-  process.env.XAI_API_KEY = 'xai-secret'
   await handler(post(IMG))
-  check('a working free model never reaches the paid one', !hosts.some((h) => h.includes('x.ai')), hosts)
+  check('a working Gemini never reaches any of them', !/groq|x\.ai/.test(hostsOf(log)), log)
 }
 {
-  globalThis.fetch = (async (url: string, init: { body: string }) => {
-    if (url.includes('x.ai')) {
-      const body = JSON.parse(init.body) as { messages: { content: { type: string }[] }[] }
-      const parts = body.messages[0].content.map((c) => c.type)
-      return new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  readable: 'yes', title: 'Meralco Bill', merchant: 'Meralco', amount: '3420.50',
-                  category: 'bill', date: '2026-09-30', time: '', repeat: 'monthly',
-                  remindDaysBefore: '3', reference: '', notes: parts.join('+'), confidence: '0.93',
-                  uncertain: [],
-                }),
-              },
-            },
-          ],
-        }),
-        { status: 200 },
-      )
-    }
-    return new Response(
-      JSON.stringify({ error: { message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } }),
-      { status: 429 },
-    )
+  // The whole point: free before paid, and the paid one untouched when the
+  // free one answers.
+  const log: string[] = []
+  globalThis.fetch = (async (url: string) => {
+    log.push(new URL(url).host)
+    if (url.includes('groq.com')) return reads()
+    if (url.includes('x.ai')) return reads({ title: 'SHOULD NOT HAPPEN' })
+    return geminiOut()
   }) as unknown as typeof fetch
 
   const res = await handler(post(IMG))
-  check('every free model out + a key -> Grok reads it', res.status === 200, res.status)
+  check('Gemini out -> Groq reads it', res.status === 200, res.status)
   const b = (await res.json()) as Record<string, unknown>
   check('  and its answer is coerced like any other', b.amount === 3420.5, b.amount)
-  check('  the same prompt and image are sent', b.notes === 'text+image_url', b.notes)
   check('  the date survives', b.date === '2026-09-30', b.date)
+  check('  the paid provider is never called', !/x\.ai/.test(hostsOf(log)), log)
 }
 {
-  // Grok failing must not turn a quota problem into a mystery.
+  // Only when the free one also fails does money get spent.
+  const log: string[] = []
   globalThis.fetch = (async (url: string) => {
-    if (url.includes('x.ai')) {
-      return new Response('{"error":"credits exhausted, key xai-secret"}', { status: 403 })
+    log.push(new URL(url).host)
+    if (url.includes('groq.com')) return new Response('{"error":"down"}', { status: 500 })
+    if (url.includes('x.ai')) return reads()
+    return geminiOut()
+  }) as unknown as typeof fetch
+
+  const res = await handler(post(IMG))
+  check('free provider down -> the paid one takes over', res.status === 200, res.status)
+  check('  having tried the free one first', log.findIndex((h) => h.includes('groq')) < log.findIndex((h) => h.includes('x.ai')), log)
+}
+{
+  // A model that cannot do strict schemas must not cost a reading.
+  const formats: string[] = []
+  globalThis.fetch = (async (url: string, init: { body: string }) => {
+    if (!url.includes('groq.com')) return geminiOut()
+    const body = JSON.parse(init.body) as { response_format: { type: string; json_schema?: { strict: boolean } } }
+    const f =
+      body.response_format.type === 'json_object'
+        ? 'json'
+        : body.response_format.json_schema?.strict
+          ? 'strict'
+          : 'schema'
+    formats.push(f)
+    if (f !== 'json') {
+      return new Response('{"error":"response_format json_schema not supported"}', { status: 400 })
     }
-    return new Response(JSON.stringify({ error: { message: 'PerDay quota' } }), { status: 429 })
+    return reads()
+  }) as unknown as typeof fetch
+
+  const res = await handler(post(IMG))
+  check('a refused schema steps down instead of failing', res.status === 200, res.status)
+  check('  strongest first, plain JSON last', formats[0] === 'strict' && formats.at(-1) === 'json', formats)
+}
+{
+  // JSON mode without a schema sometimes wraps the object in prose.
+  globalThis.fetch = (async (url: string) => {
+    if (!url.includes('groq.com')) return geminiOut()
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: 'Here you go:\n```json\n{"readable":"yes","title":"Grab Receipt","category":"receipt","amount":"318","confidence":"0.9"}\n```' } }],
+      }),
+      { status: 200 },
+    )
   }) as unknown as typeof fetch
   const res = await handler(post(IMG))
-  check('Grok failing falls back to the honest limit message', res.status === 429, res.status)
+  check('a fenced reply is salvaged rather than lost', res.status === 200, res.status)
+  check('  with the amount intact', ((await res.json()) as Record<string, unknown>).amount === 318)
+}
+{
+  // Everything out. Still a limit, not a mystery, and no keys in the reply.
+  globalThis.fetch = (async (url: string) => {
+    if (url.includes('groq.com')) return new Response('{"e":"key groq-secret rejected"}', { status: 401 })
+    if (url.includes('x.ai')) return new Response('{"e":"key xai-secret out of credit"}', { status: 403 })
+    return geminiOut()
+  }) as unknown as typeof fetch
+  const res = await handler(post(IMG))
+  check('all providers out -> the honest daily limit', res.status === 429, res.status)
   const raw = await res.text()
-  check('  and no xAI key leaks out', !raw.includes('xai-secret'), raw.slice(0, 120))
+  check('  and no provider key leaks out', !raw.includes('groq-secret') && !raw.includes('xai-secret'), raw.slice(0, 140))
+  delete process.env.GROQ_API_KEY
   delete process.env.XAI_API_KEY
 }
 

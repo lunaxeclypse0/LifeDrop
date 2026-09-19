@@ -184,7 +184,9 @@ No credit card.
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
 | `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | The model tried first. Override if the id is retired. |
 | `GEMINI_FALLBACK_MODEL` | *(optional)* `gemini-3.5-flash-lite` | Used when the first is out of quota or gone. Set it to the same value as `GEMINI_MODEL` to disable the fallback. |
-| `XAI_API_KEY` | *(optional)* | A paid last resort. Unset means Grok is never called at all — see below before setting it. |
+| `GROQ_API_KEY` | *(optional)* | A second **free** reader, used when Gemini is out. No card needed. |
+| `GROQ_MODEL` | *(optional)* `qwen/qwen3.6-27b` | Which Groq vision model reads the drop. |
+| `XAI_API_KEY` | *(optional)* | A **paid** last resort, after every free one. Unset means it is never called — read below first. |
 | `XAI_MODEL` | *(optional)* `grok-4.6` | Which Grok model reads the drop. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
@@ -274,23 +276,38 @@ they are no longer published as a table. The live figures for your own key are i
 [AI Studio](https://aistudio.google.com/rate-limit). Both models are env vars
 precisely because this will go stale.
 
-### The paid last resort
+### When Gemini runs out anyway
 
-`api/_grok.ts` adds xAI's Grok as a third step, reached only when every free
-model has refused. It is **off unless `XAI_API_KEY` is set**, and the tests
-assert that: with no key, nothing is sent to xAI, and a working free model never
-reaches it either.
+`api/_openai.ts` adds two more readers behind Gemini, **free ones first**:
 
-Before setting that key, two things are worth being clear about.
+| Step | Provider | Cost | Rough free allowance |
+|---|---|---|---|
+| 1 | `gemini-3.6-flash` | free | ~20/day |
+| 2 | `gemini-3.5-flash-lite` | free | ~500/day |
+| 3 | Groq (`GROQ_API_KEY`) | free, no card | ~14,400/day, 30/min |
+| 4 | xAI Grok (`XAI_API_KEY`) | **paid** | none |
 
-Grok has **no free tier**. New accounts get a one-time credit that expires, so
-this spends real money once that is gone. At current prices a scan is a fraction
-of a peso, but it is not zero and there is no cap in the code.
+Each is off unless its key is set, and the tests assert it: with no keys nothing
+leaves Google, a working Gemini never reaches any of them, and the paid one is
+untouched while a free one still answers.
 
-More importantly, what gets sent is **a photograph of somebody's bill**, account
-number included. xAI offers recurring credits in exchange for training on API
-requests; for this app that would mean handing over the user's financial
-documents, and enrolment is **permanent**. Leave it off.
+Both speak the same OpenAI-shaped dialect and are given the same prompt Gemini
+gets — two providers reading bills differently would be worse than one that
+sometimes refuses. Schema enforcement is uneven between them, so strict
+decoding is tried first, then a plain schema, then bare JSON mode, and whatever
+the model accepted is remembered.
+
+Groq's real constraint is tokens per minute, not requests: an image costs about
+2,048 input tokens against a 6,000/min free budget, so roughly two scans a
+minute. That is far more than a person filing bills will ever need.
+
+**Before setting `XAI_API_KEY`**, two things. Grok has **no free tier** — new
+accounts get a one-time credit that expires, so this spends real money once that
+is gone, and there is no cap in the code. And what gets sent is **a photograph
+of somebody's bill**, account number included: both xAI and OpenAI offer
+recurring credits in exchange for training on API requests, which for this app
+would mean handing over the user's financial documents. xAI's enrolment is
+**permanent**. Leave it off.
 
 ### Using a different provider
 
