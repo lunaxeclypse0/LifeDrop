@@ -31,6 +31,11 @@
 /* ---------- the ground ---------- */
 
 /**
+ * No light source sits near the top. A header has no panel to sit in, so the
+ * ground itself has to be dark where the title is -- and darkening it with an
+ * overlay drew exactly the horizontal edge this was meant to avoid. Moving the
+ * lights down leaves the top naturally black with nothing to see a seam in.
+ *
  * Drawn rather than shipped as an image: it stays sharp at any size, costs no
  * download, and can be tuned in one place. The grain is what stops the blur
  * looking like a flat wash — it gives the glass something to soften.
@@ -42,18 +47,14 @@
   z-index: 0;
   pointer-events: none;
   background-image:
-    /* A header sits straight on this ground with no panel to sit in, and the
-       brightest light happens to be at the top. This lifts off by a third of
-       the way down, so titles stay readable and the body stays vivid. */
-    linear-gradient(180deg, rgba(6, 10, 20, 0.62), rgba(6, 10, 20, 0.18) 18%, transparent 34%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.26'/%3E%3C/svg%3E"),
-    radial-gradient(38% 26% at 12% 4%, rgba(34, 211, 238, 0.46), transparent 70%),
-    radial-gradient(30% 20% at 84% 12%, rgba(139, 124, 255, 0.44), transparent 70%),
+    radial-gradient(40% 26% at 10% 26%, rgba(34, 211, 238, 0.46), transparent 70%),
+    radial-gradient(32% 22% at 88% 34%, rgba(139, 124, 255, 0.44), transparent 70%),
     radial-gradient(34% 24% at 92% 46%, rgba(232, 84, 190, 0.30), transparent 72%),
     radial-gradient(42% 28% at 22% 58%, rgba(76, 70, 242, 0.38), transparent 72%),
     radial-gradient(36% 24% at 78% 84%, rgba(18, 190, 232, 0.32), transparent 70%),
     radial-gradient(30% 22% at 8% 92%, rgba(167, 139, 250, 0.30), transparent 70%);
-  background-size: auto, 180px 180px, auto, auto, auto, auto, auto, auto;
+  background-size: 180px 180px, auto, auto, auto, auto, auto, auto;
   /* Enough to texture the blur, not enough to see as dirt. */
   opacity: 0.6;
 }
@@ -88,11 +89,11 @@
   :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
     /* Low fill on purpose. What should make a panel visible is the light it
        picks up from the ground behind it, not white paint on the front. */
-    /* The near-black base is 44% — light enough that the ground still reads
+    /* The near-black base is 50% — light enough that the ground still reads
        straight through the panel, dark enough that a caption sitting over a
        bright part of it keeps 4.5:1 with room to spare. */
     background: linear-gradient(140deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
-      rgba(9, 13, 24, 0.44);
+      rgba(9, 13, 24, 0.5);
     border-color: var(--glass-edge);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
@@ -150,4 +151,11 @@
    surface, or it reads as a crack. */
 :root[data-theme='dark'] .row {
   border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* A section label has no panel behind it — it sits on the ground, and the
+   ground has light in it. --muted is tuned for text inside a panel and drops
+   under 4.5:1 out here, so out here it uses the brighter secondary. */
+:root[data-theme='dark'] .seclabel {
+  color: var(--text2);
 }

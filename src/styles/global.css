@@ -218,7 +218,8 @@ a { color: var(--primary-ink); text-decoration: none; }
 .chiprow {
   display: flex; gap: 8px;
   overflow-x: auto; overscroll-behavior-x: contain;
-  padding: 4px var(--gutter) 12px;
+  /* The chips were landing right under the title with nothing between them. */
+  padding: 12px var(--gutter) 14px;
   scroll-padding-inline: var(--gutter);
 }
 .chip {
