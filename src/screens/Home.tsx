@@ -62,38 +62,92 @@ export function Home({ onDrop }: { onDrop: () => void }) {
   // broken. What the user actually wants to see is what it will cost them.
   const due = useMemo(() => monthDue(drops, now.getFullYear(), now.getMonth()), [drops])
   const firstName = name.trim().split(' ')[0]
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'LD'
   const empty = drops.length === 0
 
   return (
     <div className="screen">
       <header className="topbar">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="caption">{greeting()}</div>
-          {firstName ? (
-            <h1 style={{ marginTop: 1 }}>{firstName}</h1>
-          ) : (
-            // No invented name — ask for one instead.
-            <button
-              onClick={() => navigate('/setup?edit=1')}
+        {firstName ? (
+          // The only way into Profile — and so into account, settings and
+          // sign out — so it has to be somewhere obvious.
+          <button
+            onClick={() => navigate('/profile')}
+            aria-label="Your profile and settings"
+            style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}
+          >
+            <span
               style={{
-                marginTop: 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
+                flex: 'none',
+                width: 38,
+                height: 38,
+                borderRadius: 999,
+                background: 'var(--brand-grad)',
+                color: '#fff',
+                display: 'grid',
+                placeItems: 'center',
                 fontFamily: 'Manrope, sans-serif',
                 fontWeight: 800,
-                fontSize: 21,
-                letterSpacing: '-.6px',
-                lineHeight: 1.2,
-                whiteSpace: 'nowrap',
-                color: 'var(--primary-ink)',
+                fontSize: 14.5,
               }}
             >
-              Add your name
-              <Icon name="chev" size={16} width={2.4} />
-            </button>
-          )}
-        </div>
+              {initials}
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span className="caption" style={{ display: 'block', textAlign: 'left' }}>
+                {greeting()}
+              </span>
+              <span
+                className="display"
+                style={{
+                  display: 'block',
+                  fontSize: 21,
+                  letterSpacing: '-.6px',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {firstName}
+              </span>
+            </span>
+          </button>
+        ) : (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="caption">{greeting()}</div>
+            {
+              // No invented name — ask for one instead.
+              <button
+                onClick={() => navigate('/setup?edit=1')}
+                style={{
+                  marginTop: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontFamily: 'Manrope, sans-serif',
+                  fontWeight: 800,
+                  fontSize: 21,
+                  letterSpacing: '-.6px',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  color: 'var(--primary-ink)',
+                }}
+              >
+                Add your name
+                <Icon name="chev" size={16} width={2.4} />
+              </button>
+            }
+          </div>
+        )}
         <ThemeToggle />
         <button className="iconbtn" onClick={() => navigate('/voice')} aria-label="Ask LifeDrop">
           <Icon name="mic" size={20} />
@@ -281,8 +335,8 @@ export function Home({ onDrop }: { onDrop: () => void }) {
                 <Icon name="peso" size={20} color="var(--accent-ink)" />
                 <div style={{ marginTop: 10, fontSize: 14, fontWeight: 700 }}>Spending</div>
                 <div className="caption">
-              {due ? `${peso(due)} due` : `${peso(spend)} this month`}
-            </div>
+                  {due ? `${peso(due)} due` : `${peso(spend)} this month`}
+                </div>
               </button>
               <button
                 className="card"
