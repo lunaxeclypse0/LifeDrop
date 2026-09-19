@@ -1,11 +1,17 @@
 -- Removes what supabase/schema.sql added, for when it was run in the wrong project.
 --
--- It is deliberately cautious. `drops` and the storage bucket are unambiguously
--- LifeDrop's and go without asking. `profiles`, the trigger and the function use
+-- It is deliberately cautious. `drops` is unambiguously LifeDrop's and goes
+-- without asking. `profiles`, the trigger and the function use
 -- names common enough that another app may already have had them, so those are
 -- only removed when they still look untouched — and the script says what it did.
 --
 -- Run it in the SQL editor, then read the Results / Messages pane.
+--
+-- The whole block is one transaction: if any statement fails, nothing is
+-- applied. That is why the storage bucket is NOT removed here — Supabase
+-- blocks direct deletes from storage.objects, and the error would roll the
+-- rest back. Delete the bucket from Storage in the dashboard instead; the
+-- final query below tells you whether it is still there.
 
 do $$
 declare
@@ -62,20 +68,20 @@ begin
   raise notice 'REMOVED  function public.handle_new_user()';
 
   -- --------------------------------------------------------------- storage --
+  -- Policies are ordinary objects and drop cleanly. The bucket itself has to
+  -- go through the dashboard, so it is only reported on below.
   drop policy if exists "drop images are read by their owner"    on storage.objects;
   drop policy if exists "drop images are written by their owner" on storage.objects;
   drop policy if exists "drop images are deleted by their owner" on storage.objects;
   raise notice 'REMOVED  storage policies';
 
-  delete from storage.objects where bucket_id = 'drops';
-  delete from storage.buckets where id = 'drops';
-  raise notice 'REMOVED  storage bucket "drops"';
-
   raise notice '--- done ---';
+  raise notice 'NEXT     delete the "drops" bucket by hand: Dashboard -> Storage -> drops -> Delete bucket.';
 end $$;
 
--- Confirm nothing of LifeDrop's is left.
-select 'tables' as kind, table_name as name
+-- Anything listed here is still present. The bucket row, if it appears, is the
+-- one thing you have to remove from the Storage page yourself.
+select 'table' as kind, table_name as name
 from information_schema.tables
 where table_schema = 'public' and table_name in ('drops', 'profiles')
 union all
