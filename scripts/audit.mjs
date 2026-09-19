@@ -127,6 +127,37 @@ const PROBE = () => {
     }
   }
 
+  // 3b. text squeezed into a vertical column. A control stretched by a CSS rule
+  //     it was never meant to match starves its neighbour, and every check
+  //     above misses it: the control is too big rather than too small, and the
+  //     text it crushes is not a control at all.
+  //     `seen()` is deliberately not used here: it requires a non-zero width,
+  //     and a fully collapsed container is the worst version of this bug.
+  for (const el of document.querySelectorAll('div, span, p, h1, h2, h3, label')) {
+    const s = getComputedStyle(el)
+    if (s.visibility === 'hidden' || s.opacity === '0' || s.display === 'none') continue
+    const r = el.getBoundingClientRect()
+    const text = el.textContent?.trim() ?? ''
+    if (!text) continue
+
+    // Two shapes, both unmistakable. A stat column is legitimately narrow —
+    // 32px wide and 51px tall — so the thresholds are set to leave it alone.
+    // A one-glyph adornment like the ₱ in front of an amount is narrow on
+    // purpose; a label is not.
+    const collapsed = r.width < 12 && r.height > 20 && text.length > 3
+    const column = r.width < 60 && r.height > r.width * 2.5 && text.length > 8
+    if (!collapsed && !column) continue
+
+    // A wide parent with a starved child is the symptom; a narrow parent is
+    // just a narrow layout.
+    const parent = el.parentElement?.getBoundingClientRect()
+    if (!parent || parent.width < Math.max(r.width * 3, 80)) continue
+    issues.push({
+      kind: 'crushed-text',
+      detail: `${label(el)} is squeezed to ${Math.round(r.width)}px inside a ${Math.round(parent.width)}px parent`,
+    })
+  }
+
   // 4. text cut off with no ellipsis
   for (const el of document.querySelectorAll('h1, h2, h3, p, span, div')) {
     if (!seen(el) || el.children.length) continue

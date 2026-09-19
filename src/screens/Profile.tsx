@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, SectionHead, Tile, TopBar } from '../components/UI'
 import { Icon } from '../components/Icon'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { InstallRow } from '../components/InstallApp'
 import { liveDrops, useApp } from '../lib/store'
 import { cloudConfigured } from '../lib/supabase'
@@ -50,7 +51,7 @@ export function Profile() {
 
   return (
     <div className="screen">
-      <TopBar title="Profile" back />
+      <TopBar title="Profile" back right={<ThemeToggle />} />
 
       <div className="scrollhost no-nav">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>

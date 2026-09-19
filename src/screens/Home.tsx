@@ -5,7 +5,7 @@ import { EmptyState, OfflineBanner } from '../components/States'
 import { InstallBanner } from '../components/InstallApp'
 import { SignInBanner } from '../components/SignInBanner'
 import { Icon } from '../components/Icon'
-import { ThemeToggle } from '../components/ThemeToggle'
+
 import { Button, SectionHead } from '../components/UI'
 import {
   monthDue,
@@ -154,7 +154,9 @@ export function Home({ onDrop }: { onDrop: () => void }) {
             }
           </div>
         )}
-        <ThemeToggle />
+        {/* The theme switch moved to Profile and Appearance. It is a setting,
+            not an action, and a fourth button here left no room for the one
+            thing this bar exists for: the person's name. */}
         <button className="iconbtn" onClick={() => navigate('/voice')} aria-label="Ask LifeDrop">
           <Icon name="mic" size={20} />
         </button>

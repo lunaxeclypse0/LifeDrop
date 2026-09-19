@@ -299,7 +299,11 @@ a { color: var(--primary-ink); text-decoration: none; }
   border-bottom: 1px solid var(--hair);
 }
 .row:last-child { border-bottom: 0; }
-.row > button, .row button.rowline {
+/* A button that IS the row's whole line fills it. A toggle sitting beside the
+   text is not that, and `width: 100%` here beat `.toggle`'s own width on
+   specificity — which squeezed every label in the app to nothing and stacked it
+   one word per line. */
+.row > button:not(.toggle) {
   display: flex; align-items: center; gap: 12px;
   width: 100%; min-height: 44px;
 }
