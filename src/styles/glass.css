@@ -31,6 +31,12 @@
 /* ---------- the ground ---------- */
 
 /**
+ * Each light fades through three stops rather than dropping straight to
+ * transparent. A linear ramp that reaches zero all at once leaves a Mach band --
+ * the eye reads the place the fade stops as an edge -- and with six of them
+ * sharing the same stop those edges lined up into what looked like a border
+ * under the header. Fading to nothing gradually leaves nothing to see.
+ *
  * No light source sits near the top. A header has no panel to sit in, so the
  * ground itself has to be dark where the title is -- and darkening it with an
  * overlay drew exactly the horizontal edge this was meant to avoid. Moving the
@@ -48,12 +54,12 @@
   pointer-events: none;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.26'/%3E%3C/svg%3E"),
-    radial-gradient(40% 26% at 10% 26%, rgba(34, 211, 238, 0.46), transparent 70%),
-    radial-gradient(32% 22% at 88% 34%, rgba(139, 124, 255, 0.44), transparent 70%),
-    radial-gradient(34% 24% at 92% 46%, rgba(232, 84, 190, 0.30), transparent 72%),
-    radial-gradient(42% 28% at 22% 58%, rgba(76, 70, 242, 0.38), transparent 72%),
-    radial-gradient(36% 24% at 78% 84%, rgba(18, 190, 232, 0.32), transparent 70%),
-    radial-gradient(30% 22% at 8% 92%, rgba(167, 139, 250, 0.30), transparent 70%);
+    radial-gradient(58% 40% at 10% 26%, rgba(34, 211, 238, 0.42), rgba(34, 211, 238, 0.16) 34%, rgba(34, 211, 238, 0.04) 62%, rgba(34, 211, 238, 0) 88%),
+    radial-gradient(52% 36% at 88% 34%, rgba(139, 124, 255, 0.40), rgba(139, 124, 255, 0.15) 34%, rgba(139, 124, 255, 0.04) 62%, rgba(139, 124, 255, 0) 88%),
+    radial-gradient(54% 38% at 92% 46%, rgba(232, 84, 190, 0.28), rgba(232, 84, 190, 0.10) 34%, rgba(232, 84, 190, 0.03) 62%, rgba(232, 84, 190, 0) 88%),
+    radial-gradient(62% 44% at 22% 58%, rgba(76, 70, 242, 0.34), rgba(76, 70, 242, 0.13) 34%, rgba(76, 70, 242, 0.04) 62%, rgba(76, 70, 242, 0) 88%),
+    radial-gradient(56% 38% at 78% 84%, rgba(18, 190, 232, 0.30), rgba(18, 190, 232, 0.11) 34%, rgba(18, 190, 232, 0.03) 62%, rgba(18, 190, 232, 0) 88%),
+    radial-gradient(50% 36% at 8% 92%, rgba(167, 139, 250, 0.28), rgba(167, 139, 250, 0.10) 34%, rgba(167, 139, 250, 0.03) 62%, rgba(167, 139, 250, 0) 88%);
   background-size: 180px 180px, auto, auto, auto, auto, auto, auto;
   /* Enough to texture the blur, not enough to see as dirt. */
   opacity: 0.6;
@@ -89,11 +95,11 @@
   :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
     /* Low fill on purpose. What should make a panel visible is the light it
        picks up from the ground behind it, not white paint on the front. */
-    /* The near-black base is 50% — light enough that the ground still reads
+    /* The near-black base is 56% — light enough that the ground still reads
        straight through the panel, dark enough that a caption sitting over a
        bright part of it keeps 4.5:1 with room to spare. */
     background: linear-gradient(140deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
-      rgba(9, 13, 24, 0.5);
+      rgba(9, 13, 24, 0.56);
     border-color: var(--glass-edge);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
