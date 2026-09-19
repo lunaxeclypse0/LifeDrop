@@ -96,6 +96,11 @@ from the local store. Asking what you owe does not send your finances anywhere.
 Accounts are optional. With no Supabase project connected the app is device-only
 and never offers a sign-in; with one, drops sync to the signed-in user.
 
+With a Supabase project connected, onboarding ends at sign-up rather than at a
+local profile — an account is the start of using the app, not an afterthought.
+"Use LifeDrop without an account" is still there for anyone who wants the
+device-only version, and without a project connected that is the only path.
+
 Sign-up asks for a **username**, not an email. Supabase has no username-only
 mode, so a username is mapped to a synthetic address — `lance@lifedrop.invalid`
 — and that is what is stored. `.invalid` is reserved by RFC 6761 and can never

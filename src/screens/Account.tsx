@@ -24,6 +24,7 @@ export function Account() {
   const signIn = useApp((s) => s.signIn)
   const signUp = useApp((s) => s.signUp)
   const drops = useApp((s) => s.drops)
+  const onboarded = useApp((s) => s.settings.onboarded)
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -93,7 +94,7 @@ export function Account() {
 
   return (
     <div className="screen">
-      <TopBar back onBack={() => navigate('/home')} />
+      <TopBar back onBack={() => navigate(onboarded ? '/home' : '/onboarding')} />
       <div className="scrollhost no-nav">
         <DropMark size={50} />
         <h2 className="display" style={{ fontSize: 26, margin: '16px 0 6px' }}>
@@ -183,6 +184,9 @@ export function Account() {
         </Button>
         <Button variant="ghost" onClick={swap}>
           {mode === 'signup' ? 'I already have an account' : 'Create an account'}
+        </Button>
+        <Button variant="ghost" onClick={() => navigate('/setup')}>
+          Use LifeDrop without an account
         </Button>
 
         {mode === 'signup' && (

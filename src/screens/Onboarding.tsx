@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/UI'
 import { DropMark } from '../components/Brand'
 import { Icon } from '../components/Icon'
+import { cloudConfigured } from '../lib/supabase'
 
 const STEPS = [
   {
@@ -100,6 +101,9 @@ export function Onboarding() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const last = step === STEPS.length - 1
+  // With accounts available, signing up is the start. Without them there is
+  // nothing to sign in to, so naming the device profile is.
+  const next = cloudConfigured() ? '/account?mode=signup' : '/setup'
 
   return (
     <div className="screen">
@@ -113,7 +117,7 @@ export function Onboarding() {
         <button
           className="btn ghost"
           style={{ width: 'auto', padding: '10px 6px' }}
-          onClick={() => navigate('/setup')}
+          onClick={() => navigate(next)}
         >
           Skip
         </button>
@@ -153,7 +157,7 @@ export function Onboarding() {
           ))}
         </div>
 
-        <Button onClick={() => (last ? navigate('/setup') : setStep(step + 1))}>
+        <Button onClick={() => (last ? navigate(next) : setStep(step + 1))}>
           {last ? 'Get Started' : 'Continue'}
         </Button>
       </div>
