@@ -52,7 +52,9 @@ export interface Answer {
 
 function periodRange(period: Period): { from: string; to: string; label: string } {
   const now = new Date()
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  // Local, not UTC — see the note in store.upcomingDrops.
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
   switch (period) {
     case 'this_month': {

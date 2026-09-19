@@ -3,7 +3,7 @@ import type { AppSettings, Drop, DropSource, Extraction, Status } from './types'
 import { DEFAULT_STATUS } from './types'
 import * as db from './db'
 import { buildSeedDrops } from './seed'
-import { nextOccurrence, todayISO } from './format'
+import { nextOccurrence, toISO, todayISO } from './format'
 import { defaultLeadDays, rearm, runReminderSweep } from './reminders'
 import { clearFailures, createLock, NO_LOCK } from './lock'
 
@@ -338,7 +338,9 @@ export function upcomingDrops(drops: Drop[], withinDays = 30): Drop[] {
   const today = todayISO()
   const limit = new Date()
   limit.setDate(limit.getDate() + withinDays)
-  const limitISO = limit.toISOString().slice(0, 10)
+  // toISO(), not toISOString() — the latter is UTC and reports yesterday
+  // through the whole Philippine morning.
+  const limitISO = toISO(limit)
   return liveDrops(drops)
     .filter((d) => d.date > today && d.date <= limitISO && d.status !== 'paid' && d.status !== 'done')
     .sort(byDate)
@@ -358,6 +360,28 @@ export function monthSpend(drops: Drop[], year: number, month: number): number {
   return drops
     .filter((d) => !d.archived && d.date.startsWith(prefix) && d.amount)
     .filter((d) => d.category === 'receipt' || (d.category === 'bill' && d.status === 'paid'))
+    .reduce((sum, d) => sum + (d.amount ?? 0), 0)
+}
+
+/**
+ * Money committed for the month but not yet settled — unpaid bills and
+ * renewals that fall in it. Home shows this rather than `monthSpend`, because
+ * a freshly scanned bill is exactly what the user wants to see a number for,
+ * and it is unpaid by definition.
+ */
+export function monthDue(drops: Drop[], year: number, month: number): number {
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  return liveDrops(drops)
+    .filter((d) => d.date.startsWith(prefix) && d.amount)
+    .filter((d) => d.status === 'unpaid' || (d.category === 'subscription' && d.status === 'active'))
+    .reduce((sum, d) => sum + (d.amount ?? 0), 0)
+}
+
+/** Everything still owed, whatever month it falls in. */
+export function outstandingTotal(drops: Drop[]): number {
+  return liveDrops(drops)
+    .filter((d) => d.amount)
+    .filter((d) => d.status === 'unpaid' || (d.category === 'subscription' && d.status === 'active'))
     .reduce((sum, d) => sum + (d.amount ?? 0), 0)
 }
 

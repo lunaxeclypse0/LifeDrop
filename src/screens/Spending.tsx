@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../components/States'
 import { SectionHead, TopBar, catColor } from '../components/UI'
 import { Icon } from '../components/Icon'
-import { useApp } from '../lib/store'
+import { outstandingTotal, useApp } from '../lib/store'
 import { monthLabel, peso } from '../lib/format'
 import { CATEGORIES, CATEGORY_ORDER, type Category } from '../lib/types'
 
@@ -84,17 +84,37 @@ export function Spending() {
   }, [selected.total])
 
   const hasAny = months.some((m) => m.total > 0)
+  // Scanned-but-unpaid bills are real money the user is tracking. Without this
+  // the screen reads "nothing tracked yet" right after they scanned three.
+  const owed = useMemo(() => outstandingTotal(drops), [drops])
 
   return (
     <div className="screen">
       <TopBar title="Spending" subtitle="Receipts and settled bills" back />
 
       <div className="scrollhost no-nav">
+        {owed > 0 && (
+          <button
+            className="card"
+            onClick={() => navigate('/inbox')}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', marginBottom: 14 }}
+          >
+            <Icon name="clock" size={19} color="var(--warning)" />
+            <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>
+                {peso(owed)} still to pay
+              </span>
+              <span className="caption">Counted here once you mark it paid</span>
+            </span>
+            <Icon name="chev" size={17} color="var(--muted)" />
+          </button>
+        )}
+
         {!hasAny ? (
           <EmptyState
             art="nothing"
-            title="Nothing tracked yet"
-            body="Drop a receipt, or mark a bill as paid, and the total shows up here."
+            title="Nothing paid yet"
+            body="This screen tracks money that has actually left — receipts, and bills you have marked as paid."
           />
         ) : (
           <>

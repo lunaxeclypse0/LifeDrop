@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { Button, SectionHead } from '../components/UI'
 import {
+  monthDue,
   monthSpend,
   needsReviewDrops,
   recentDrops,
@@ -57,6 +58,9 @@ export function Home({ onDrop }: { onDrop: () => void }) {
 
   const now = new Date()
   const spend = useMemo(() => monthSpend(drops, now.getFullYear(), now.getMonth()), [drops])
+  // A bill you just scanned is unpaid, so "spent" reads as zero and looks
+  // broken. What the user actually wants to see is what it will cost them.
+  const due = useMemo(() => monthDue(drops, now.getFullYear(), now.getMonth()), [drops])
   const firstName = name.trim().split(' ')[0]
   const empty = drops.length === 0
 
@@ -195,9 +199,11 @@ export function Home({ onDrop }: { onDrop: () => void }) {
                   </div>
                   <div>
                     <div className="num" style={{ fontSize: 22 }}>
-                      {peso(spend)}
+                      {peso(due || spend)}
                     </div>
-                    <div style={{ fontSize: 11, opacity: 0.82, fontWeight: 600 }}>This month</div>
+                    <div style={{ fontSize: 11, opacity: 0.82, fontWeight: 600 }}>
+                      {due ? 'Due this month' : 'Spent this month'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -274,7 +280,9 @@ export function Home({ onDrop }: { onDrop: () => void }) {
               >
                 <Icon name="peso" size={20} color="var(--accent-ink)" />
                 <div style={{ marginTop: 10, fontSize: 14, fontWeight: 700 }}>Spending</div>
-                <div className="caption">This month: {peso(spend)}</div>
+                <div className="caption">
+              {due ? `${peso(due)} due` : `${peso(spend)} this month`}
+            </div>
               </button>
               <button
                 className="card"
