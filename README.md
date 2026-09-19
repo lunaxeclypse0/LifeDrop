@@ -113,7 +113,7 @@ No credit card.
 |---|---|---|
 | `GEMINI_API_KEY` | your key | Server-side only. Never reaches the browser. Also read from `API_KEY_LIFEDROP`, `GOOGLE_API_KEY` or `GEMINI_KEY`, whichever is set. |
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
-| `GEMINI_MODEL` | *(optional)* `gemini-2.5-flash` | Override if the model id changes. |
+| `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | Override if the model id changes. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
 before you set it will still use the mock.

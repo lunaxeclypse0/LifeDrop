@@ -176,6 +176,13 @@ process.env.GEMINI_API_KEY = 'test-key'
   check('429 is passed through as rate limiting', res.status === 429, res.status)
 }
 {
+  stubGemini({ error: { code: 404, message: 'no longer available' } }, 404)
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('retired model -> a message naming the fix', b.error === 'model_unavailable', b)
+  check('  and names the model tried', String(b.message).includes('gemini-3.6-flash'), b.message)
+}
+{
   stubGemini({ error: 'boom' }, 500)
   const res = await handler(post(IMG))
   check('upstream 500 -> 502', res.status === 502, res.status)

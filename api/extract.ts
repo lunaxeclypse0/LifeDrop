@@ -7,7 +7,7 @@
  *
  * Env:
  *   GEMINI_API_KEY   required — from https://aistudio.google.com/apikey
- *   GEMINI_MODEL     optional — defaults to gemini-2.5-flash
+ *   GEMINI_MODEL     optional — defaults to gemini-3.6-flash
  */
 
 /**
@@ -19,7 +19,10 @@
  */
 export const config = { runtime: 'edge' }
 
-const DEFAULT_MODEL = 'gemini-2.5-flash'
+// Google retires model ids and returns 404 for them, so this is the one value
+// here most likely to go stale. `GEMINI_MODEL` overrides it without a code
+// change; the 404 body names the replacement when that day comes.
+const DEFAULT_MODEL = 'gemini-3.6-flash'
 const CATEGORIES = [
   'bill',
   'receipt',
@@ -206,6 +209,16 @@ export default async function handler(request: Request): Promise<Response> {
     const detail = await res.text().catch(() => '')
     if (res.status === 429) {
       return json({ error: 'rate_limited', message: 'The free tier limit was hit. Try again shortly.' }, 429)
+    }
+    if (res.status === 404) {
+      return json(
+        {
+          error: 'model_unavailable',
+          message: `The model "${model}" is not available to this key. Set GEMINI_MODEL to a current one.`,
+          detail: detail.slice(0, 400),
+        },
+        502,
+      )
     }
     return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 400) }, 502)
   }
