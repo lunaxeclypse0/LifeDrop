@@ -96,6 +96,19 @@ from the local store. Asking what you owe does not send your finances anywhere.
 Accounts are optional. With no Supabase project connected the app is device-only
 and never offers a sign-in; with one, drops sync to the signed-in user.
 
+Sign-up asks for a **username**, not an email. Supabase has no username-only
+mode, so a username is mapped to a synthetic address — `lance@lifedrop.invalid`
+— and that is what is stored. `.invalid` is reserved by RFC 6761 and can never
+resolve, so nothing is ever delivered to a real inbox. Uniqueness comes free,
+because Supabase already refuses a duplicate address.
+
+The cost is stated on the sign-up screen: with no real email there is no
+password reset. The domain in `src/lib/username.ts` must never change once
+anyone has signed up — it is how their account is found.
+
+Turn **Confirm email** off in Supabase (Authentication → Sign In / Providers →
+Email), or sign-up will wait forever for a confirmation that cannot arrive.
+
 **Setting it up**
 
 1. Create a project at [supabase.com](https://supabase.com) (free tier).
@@ -233,6 +246,7 @@ src/
     lock.ts        PIN hashing, attempt limiting, WebAuthn enrolment
     speech.ts      browser speech in and out
     supabase.ts    client and row mapping
+    username.ts    username <-> synthetic address, and validation
     sync.ts        outbox, pull/push, image upload
 supabase/
   schema.sql     tables, triggers and the row-level security policies

@@ -5,6 +5,7 @@ import { DropMark } from '../components/Brand'
 import { Icon } from '../components/Icon'
 import { useApp } from '../lib/store'
 import { cloudConfigured } from '../lib/supabase'
+import { USERNAME_MAX, validateUsername } from '../lib/username'
 
 /**
  * A real account this time: the password is checked by Supabase, and every
@@ -13,7 +14,6 @@ import { cloudConfigured } from '../lib/supabase'
  * vault away from everyone else's.
  */
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const MIN_PASSWORD = 8
 
 export function Account() {
@@ -25,12 +25,11 @@ export function Account() {
   const signUp = useApp((s) => s.signUp)
   const drops = useApp((s) => s.drops)
 
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({})
   const [failure, setFailure] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -59,8 +58,8 @@ export function Account() {
 
   const submit = async () => {
     const found: typeof errors = {}
-    if (mode === 'signup' && name.trim().length < 2) found.name = 'Tell us what to call you.'
-    if (!EMAIL_RE.test(email.trim())) found.email = 'That email does not look right.'
+    const badName = validateUsername(username)
+    if (badName) found.username = badName
     if (password.length < MIN_PASSWORD) {
       found.password = `At least ${MIN_PASSWORD} characters.`
     }
@@ -70,7 +69,8 @@ export function Account() {
     if (Object.keys(found).length) return
 
     setBusy(true)
-    const problem = mode === 'signup' ? await signUp(email, password, name) : await signIn(email, password)
+    const problem =
+      mode === 'signup' ? await signUp(username, password) : await signIn(username, password)
     setBusy(false)
 
     if (!problem) {
@@ -101,7 +101,7 @@ export function Account() {
         </h2>
         <p className="body2" style={{ margin: '0 0 22px' }}>
           {mode === 'signup'
-            ? 'Your drops sync across your devices and stay yours alone.'
+            ? 'Pick a username. Your drops sync across your devices and stay yours alone.'
             : 'Sign in to reach your vault from any device.'}
         </p>
 
@@ -115,27 +115,17 @@ export function Account() {
           </div>
         )}
 
-        {mode === 'signup' && (
-          <Field label="Name" error={errors.name}>
-            <Icon name="profile" size={18} color="var(--muted)" />
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="What should we call you?"
-              autoComplete="name"
-            />
-          </Field>
-        )}
-
-        <Field label="Email" error={errors.email}>
-          <Icon name="inbox" size={18} color="var(--muted)" />
+        <Field label="Username" error={errors.username}>
+          <Icon name="profile" size={18} color="var(--muted)" />
           <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="lance"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={USERNAME_MAX}
+            onKeyDown={(e) => e.key === 'Enter' && void submit()}
           />
         </Field>
 
@@ -194,6 +184,24 @@ export function Account() {
         <Button variant="ghost" onClick={swap}>
           {mode === 'signup' ? 'I already have an account' : 'Create an account'}
         </Button>
+
+        {mode === 'signup' && (
+          <div
+            className="card"
+            style={{
+              display: 'flex',
+              gap: 11,
+              marginTop: 14,
+              borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
+            }}
+          >
+            <Icon name="alert" size={18} color="var(--warning)" />
+            <div className="body2" style={{ fontSize: 13 }}>
+              There is no email on the account, so a forgotten password cannot be reset. Write it
+              down somewhere safe.
+            </div>
+          </div>
+        )}
 
         <p className="caption" style={{ textAlign: 'center', marginTop: 18, lineHeight: 1.55 }}>
           Your drops are stored in your account and readable only by you. Review before saving.

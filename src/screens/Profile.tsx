@@ -5,6 +5,7 @@ import { Icon } from '../components/Icon'
 import { InstallRow } from '../components/InstallApp'
 import { liveDrops, useApp } from '../lib/store'
 import { cloudConfigured } from '../lib/supabase'
+import { emailToUsername, isUsernameAccount } from '../lib/username'
 import { pesoCompact } from '../lib/format'
 import type { IconName } from '../lib/icons'
 
@@ -77,7 +78,9 @@ export function Profile() {
               {named ? settings.name : 'Your profile'}
             </div>
             <div className="body2" style={{ fontSize: 13.5 }}>
-              {settings.email || (named ? 'No email set' : 'Tap Edit profile to add your name')}
+              {isUsernameAccount(settings.email)
+                ? `@${emailToUsername(settings.email)}`
+                : settings.email || (named ? 'No email set' : 'Tap Edit profile to add your name')}
             </div>
           </div>
         </div>
@@ -105,7 +108,7 @@ export function Profile() {
                     <div className="mid">
                       <div className="t">Signed in</div>
                       <div className="d">
-                        {user.email} ·{' '}
+                        {isUsernameAccount(user.email) ? emailToUsername(user.email!) : user.email} ·{' '}
                         {syncing ? 'syncing…' : syncError ? `not synced: ${syncError}` : 'synced'}
                       </div>
                     </div>

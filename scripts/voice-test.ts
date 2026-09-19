@@ -11,6 +11,7 @@
 import handler from '../api/voice'
 import { answer, type VoiceIntent } from '../src/lib/assistant'
 import type { Drop } from '../src/lib/types'
+import { emailToUsername, usernameToEmail, validateUsername } from '../src/lib/username'
 
 let passed = 0
 let failed = 0
@@ -135,6 +136,28 @@ const ask = (over: Partial<VoiceIntent>): VoiceIntent => ({
   const a = answer(ask({ question: 'spend_total' }), [])
   check('an empty vault says so instead of zero', a.speech.includes('not saved anything'), a.speech)
 }
+
+// ---------------------------------------------------------------------------
+// usernames
+// ---------------------------------------------------------------------------
+
+check('rejects a short username', validateUsername('ab') !== null)
+check('rejects spaces', validateUsername('lance reyes') !== null)
+check('rejects a leading symbol', validateUsername('.lance') !== null)
+check('rejects doubled symbols', validateUsername('lan..ce') !== null)
+check('accepts a normal one', validateUsername('lance.reyes') === null, validateUsername('lance.reyes'))
+check('accepts digits', validateUsername('lance99') === null)
+check(
+  'case folds, so one person is one account',
+  usernameToEmail('Lance') === usernameToEmail('  lance  '),
+)
+check(
+  'maps to a domain that can never receive mail',
+  usernameToEmail('lance').endsWith('@lifedrop.invalid'),
+  usernameToEmail('lance'),
+)
+check('round-trips back to the username', emailToUsername(usernameToEmail('lance')) === 'lance')
+check('leaves a real email alone', emailToUsername('a@b.com') === 'a@b.com')
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -8,6 +8,7 @@ import { defaultLeadDays, rearm, runReminderSweep } from './reminders'
 import { clearFailures, createLock, NO_LOCK } from './lock'
 import { cloudConfigured, currentUser, supabase } from './supabase'
 import { adoptLocalDrops, resetSyncCursor, sync } from './sync'
+import { normalizeUsername, usernameToEmail } from './username'
 import type { User } from '@supabase/supabase-js'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -68,8 +69,8 @@ interface State {
   user: User | null
   syncing: boolean
   syncError: string | null
-  signUp: (email: string, password: string, name: string) => Promise<string | null>
-  signIn: (email: string, password: string) => Promise<string | null>
+  signUp: (username: string, password: string) => Promise<string | null>
+  signIn: (username: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
   syncNow: () => Promise<void>
 
@@ -310,42 +311,51 @@ export const useApp = create<State>((set, get) => ({
   syncing: false,
   syncError: null,
 
-  async signUp(email, password, name) {
+  async signUp(username, password) {
     if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
+    const name = normalizeUsername(username)
     const { data, error } = await supabase().auth.signUp({
-      email: email.trim(),
+      email: usernameToEmail(name),
       password,
-      options: { data: { name: name.trim() } },
+      options: { data: { username: name } },
     })
-    if (error) return error.message
-    if (!data.user) return 'Check your email to confirm the account, then sign in.'
+    if (error) {
+      // Supabase reports a taken address; say it in the user's own terms.
+      return /already registered|already exists/i.test(error.message)
+        ? 'That username is taken. Try another.'
+        : error.message
+    }
+    if (!data.user) return 'Account created. Sign in to continue.'
 
     // Anything dropped before signing up belongs to this account now.
     await adoptLocalDrops()
     set({ user: data.user })
-    await get().patchSettings({ name: name.trim(), email: email.trim(), onboarded: true })
+    await get().patchSettings({ name, email: usernameToEmail(name), onboarded: true })
     void get().syncNow()
     return null
   },
 
-  async signIn(email, password) {
+  async signIn(username, password) {
     if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
-    const { data, error } = await supabase().auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-    if (error) return error.message
+    const name = normalizeUsername(username)
+    const email = usernameToEmail(name)
+    const { data, error } = await supabase().auth.signInWithPassword({ email, password })
+    if (error) {
+      return /invalid login credentials/i.test(error.message)
+        ? 'That username and password do not match.'
+        : error.message
+    }
 
     // A different person on this device must not inherit the last one's vault.
     const previous = get().settings.email
-    if (previous && previous !== email.trim()) {
+    if (previous && previous !== email) {
       await db.wipeAll()
       resetSyncCursor()
       set({ drops: [] })
     }
 
     set({ user: data.user })
-    await get().patchSettings({ email: email.trim(), onboarded: true })
+    await get().patchSettings({ name, email, onboarded: true })
     await get().syncNow()
     set({ drops: await db.allDrops() })
     return null
