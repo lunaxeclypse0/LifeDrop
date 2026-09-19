@@ -6,12 +6,49 @@ import { Button } from './UI'
 import { useApp } from '../lib/store'
 import { isIOS, useInstall } from '../lib/install'
 
-function IOSSteps() {
-  const steps: { icon: 'share' | 'plus' | 'check'; text: React.ReactNode }[] = [
-    { icon: 'share', text: <>Tap the <strong>Share</strong> button in Safari's toolbar.</> },
-    { icon: 'plus', text: <>Scroll down and choose <strong>Add to Home Screen</strong>.</> },
-    { icon: 'check', text: <>Tap <strong>Add</strong>. LifeDrop appears with your other apps.</> },
-  ]
+/**
+ * Chrome only fires `beforeinstallprompt` once it decides the visitor is
+ * engaged, and never on iOS. So there is always a by-hand route, written for
+ * whichever browser is actually open.
+ */
+function manualSteps(): { title: string; steps: { icon: 'share' | 'plus' | 'check' | 'more'; text: React.ReactNode }[] } {
+  if (isIOS()) {
+    return {
+      title: 'Safari does not offer a one-tap install, so it takes three steps.',
+      steps: [
+        { icon: 'share', text: <>Tap the <strong>Share</strong> button in Safari's toolbar.</> },
+        { icon: 'plus', text: <>Scroll down and choose <strong>Add to Home Screen</strong>.</> },
+        { icon: 'check', text: <>Tap <strong>Add</strong>. LifeDrop appears with your other apps.</> },
+      ],
+    }
+  }
+
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  const android = /Android/i.test(ua)
+
+  if (android) {
+    return {
+      title: 'Your browser has not offered the shortcut yet. You can add it yourself.',
+      steps: [
+        { icon: 'more', text: <>Open the browser menu (<strong>⋮</strong>, top right).</> },
+        { icon: 'plus', text: <>Choose <strong>Add to Home screen</strong> or <strong>Install app</strong>.</> },
+        { icon: 'check', text: <>Confirm. LifeDrop appears with your other apps.</> },
+      ],
+    }
+  }
+
+  return {
+    title: 'Your browser has not offered the shortcut yet. You can add it yourself.',
+    steps: [
+      { icon: 'plus', text: <>Look for the <strong>install icon</strong> at the right of the address bar.</> },
+      { icon: 'more', text: <>Or open the menu (<strong>⋮</strong>) and find <strong>Install LifeDrop</strong>.</> },
+      { icon: 'check', text: <>On a phone this is the same as <strong>Add to Home screen</strong>.</> },
+    ],
+  }
+}
+
+function Steps() {
+  const { steps } = manualSteps()
   return (
     <ol style={{ listStyle: 'none', margin: '4px 0 18px', padding: 0 }}>
       {steps.map((s, i) => (
@@ -37,15 +74,17 @@ export function InstallBanner() {
   const showToast = useApp((s) => s.showToast)
   const [sheet, setSheet] = useState(false)
 
-  if (dismissed || state === 'installed' || state === 'unavailable') return null
+  if (dismissed || state === 'installed') return null
 
   const run = async () => {
-    if (state === 'manual') {
+    if (state !== 'ready') {
       setSheet(true)
       return
     }
     const ok = await install()
+    // A dismissed native prompt is not a failure; the steps still help.
     if (ok) showToast('LifeDrop is on your home screen')
+    else setSheet(true)
   }
 
   return (
@@ -91,9 +130,9 @@ export function InstallBanner() {
         open={sheet}
         onClose={() => setSheet(false)}
         title="Add LifeDrop to your home screen"
-        subtitle="Safari does not offer a one-tap install, so it takes three steps."
+        subtitle={manualSteps().title}
       >
-        <IOSSteps />
+        <Steps />
         <Button onClick={() => setSheet(false)}>Got it</Button>
       </BottomSheet>
     </>
@@ -118,38 +157,26 @@ export function InstallRow() {
     )
   }
 
-  if (state === 'unavailable') {
-    return (
-      <div className="row">
-        <div className="mid">
-          <div className="t">Install app</div>
-          <div className="d">
-            This browser cannot install LifeDrop. Open it in Chrome, Edge or Safari on your phone.
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       <button
         className="row"
         onClick={async () => {
-          if (state === 'manual') {
+          if (state !== 'ready') {
             setSheet(true)
             return
           }
           const ok = await install()
           if (ok) showToast('LifeDrop is on your home screen')
+          else setSheet(true)
         }}
       >
         <div className="mid">
           <div className="t">Install app</div>
           <div className="d">
-            {isIOS()
-              ? 'Add LifeDrop to your home screen from Safari'
-              : 'Add LifeDrop to your home screen'}
+            {state === 'ready'
+              ? 'One tap — adds LifeDrop to your home screen'
+              : 'Show me how to add it to my home screen'}
           </div>
         </div>
         <Icon name="download" size={18} color="var(--primary-ink)" />
@@ -159,9 +186,9 @@ export function InstallRow() {
         open={sheet}
         onClose={() => setSheet(false)}
         title="Add LifeDrop to your home screen"
-        subtitle="Safari does not offer a one-tap install, so it takes three steps."
+        subtitle={manualSteps().title}
       >
-        <IOSSteps />
+        <Steps />
         <Button onClick={() => setSheet(false)}>Got it</Button>
       </BottomSheet>
     </>

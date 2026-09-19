@@ -10,6 +10,15 @@
  *   GEMINI_MODEL     optional — defaults to gemini-2.5-flash
  */
 
+/**
+ * The Edge runtime is what makes the Web-standard signature below valid. On
+ * Vercel's default Node runtime a handler is called with (req, res) and must
+ * end the response itself, so returning a `Response` there leaves the request
+ * hanging until the gateway gives up. Edge speaks Request/Response natively —
+ * and `request.formData()` comes free with it.
+ */
+export const config = { runtime: 'edge' }
+
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 const CATEGORIES = [
   'bill',
@@ -93,6 +102,14 @@ function oneOf<T extends readonly string[]>(raw: unknown, allowed: T, fallback: 
     : fallback
 }
 
+/** yyyy-mm-dd that is also a date that exists — "2026-02-31" is not. */
+function isRealDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -100,21 +117,32 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
+/** Chunked so the spread never grows large enough to overflow the stack. */
 function toBase64(bytes: Uint8Array): string {
   let bin = ''
-  const CHUNK = 0x8000
+  const CHUNK = 8192
   for (let i = 0; i < bytes.length; i += CHUNK) {
     bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
   }
   return btoa(bin)
 }
 
+/** Edge caps the request body, and the client downscales well below this. */
+const MAX_BYTES = 4 * 1024 * 1024
+
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'Use POST.' }, 405)
   }
 
-  const key = process.env.GEMINI_API_KEY
+  // `GEMINI_API_KEY` is the documented name, but the key is just as often
+  // saved under a project-specific one. Accept the common spellings rather
+  // than fail with a "not configured" error the user cannot see the cause of.
+  const key =
+    process.env.GEMINI_API_KEY ||
+    process.env.API_KEY_LIFEDROP ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GEMINI_KEY
   if (!key) {
     // 503 is the client's signal that the model is not wired up yet, as
     // opposed to a drop it genuinely could not read.
@@ -136,6 +164,10 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (!file || file.size === 0) {
     return json({ error: 'bad_request', message: 'No file received.' }, 400)
+  }
+
+  if (file.size > MAX_BYTES) {
+    return json({ error: 'too_large', message: 'That file is too big to read.' }, 413)
   }
 
   // Gemini takes images and PDFs inline; anything else it cannot read.
@@ -197,8 +229,10 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'unreadable', message: 'The document could not be read.' }, 422)
   }
 
-  const date = typeof out.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(out.date) ? out.date : today
-  const time = typeof out.time === 'string' && /^\d{2}:\d{2}$/.test(out.time) ? out.time : null
+  const date = typeof out.date === 'string' && isRealDate(out.date) ? out.date : today
+  // Hours and minutes have to be in range — "25:99" matched a looser pattern.
+  const time =
+    typeof out.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(out.time) ? out.time : null
   const confidence = Math.max(0, Math.min(1, toNumber(out.confidence) ?? 0.8))
 
   return json({

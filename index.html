@@ -18,6 +18,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Chrome fires beforeinstallprompt during page load, which is usually
+      // before React has mounted and attached its listener. Catching it here,
+      // inline and first, is the only reliable way to keep the prompt — a
+      // listener added later simply never sees it.
+      window.__ldInstallPrompt = null
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault()
+        window.__ldInstallPrompt = e
+        window.dispatchEvent(new Event('ld-install-ready'))
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

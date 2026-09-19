@@ -5,7 +5,12 @@ import { Illustration } from '../components/Illustration'
 import { Button, Progress, TopBar } from '../components/UI'
 import { Ripples } from '../components/Brand'
 import { useApp } from '../lib/store'
-import { getExtractor, UnreadableDropError } from '../lib/extract'
+import {
+  ExtractorNotConfiguredError,
+  getExtractor,
+  RateLimitedError,
+  UnreadableDropError,
+} from '../lib/extract'
 import { peso, shortDate } from '../lib/format'
 import { CATEGORIES } from '../lib/types'
 import type { Extraction } from '../lib/types'
@@ -18,7 +23,7 @@ const CAPTIONS = [
   'Ready.',
 ]
 
-type Phase = 'working' | 'unreadable' | 'failed'
+type Phase = 'working' | 'unreadable' | 'unconfigured' | 'ratelimited' | 'failed'
 
 export function Processing() {
   const navigate = useNavigate()
@@ -56,7 +61,12 @@ export function Processing() {
         setExtraction(extraction)
       } catch (err) {
         if (controller.signal.aborted) return
-        setPhase(err instanceof UnreadableDropError ? 'unreadable' : 'failed')
+        setPhase(
+          err instanceof UnreadableDropError ? 'unreadable'
+          : err instanceof ExtractorNotConfiguredError ? 'unconfigured'
+          : err instanceof RateLimitedError ? 'ratelimited'
+          : 'failed',
+        )
       }
     })()
 
@@ -81,26 +91,56 @@ export function Processing() {
     { k: 'Category', v: result ? CATEGORIES[result.category].label : null, on: step >= 3 },
   ]
 
-  if (phase === 'unreadable' || phase === 'failed') {
-    const isUnreadable = phase === 'unreadable'
+  if (phase !== 'working') {
+    const COPY = {
+      unreadable: {
+        art: 'unreadable' as const,
+        title: 'We could not read this one',
+        body: 'The text was too blurry or too small. Try a closer shot, or type the details in yourself.',
+        retry: true,
+      },
+      unconfigured: {
+        art: 'unreadable' as const,
+        title: 'AI reading is not set up yet',
+        body: 'The server has no model key, so nothing can be read automatically. You can still add this drop by hand.',
+        retry: false,
+      },
+      ratelimited: {
+        art: 'offline' as const,
+        title: 'The free limit was reached',
+        body: 'The AI has read its quota for now. Wait a minute and try again, or type the details in yourself.',
+        retry: true,
+      },
+      failed: {
+        art: 'offline' as const,
+        title: 'That upload did not finish',
+        body: 'Check your connection and try again. Your drop is still here.',
+        retry: true,
+      },
+    }[phase]
+
     return (
       <div className="screen">
         <TopBar back onBack={() => navigate('/home')} />
         <div className="scrollhost no-nav" style={{ display: 'grid', placeItems: 'center' }}>
           <div style={{ textAlign: 'center', maxWidth: 300 }}>
-            <Illustration art={isUnreadable ? 'unreadable' : 'offline'} />
+            <Illustration art={COPY.art} />
             <h2 className="display" style={{ fontSize: 22, margin: '18px 0 8px' }}>
-              {isUnreadable ? 'We could not read this one' : 'That upload did not finish'}
+              {COPY.title}
             </h2>
             <p className="body2" style={{ margin: '0 0 22px' }}>
-              {isUnreadable
-                ? 'The text was too blurry or too small. Try a closer shot, or type the details in yourself.'
-                : 'Check your connection and try again. Your drop is still here.'}
+              {COPY.body}
             </p>
-            <Button icon="refresh" onClick={() => setAttempt((a) => a + 1)}>
-              Try again
-            </Button>
-            <Button variant="secondary" icon="edit" onClick={() => navigate('/review?manual=1', { replace: true })}>
+            {COPY.retry && (
+              <Button icon="refresh" onClick={() => setAttempt((a) => a + 1)}>
+                Try again
+              </Button>
+            )}
+            <Button
+              variant={COPY.retry ? 'secondary' : 'primary'}
+              icon="edit"
+              onClick={() => navigate('/review?manual=1', { replace: true })}
+            >
               Enter the details myself
             </Button>
             <Button variant="ghost" onClick={() => navigate('/home')}>

@@ -1,5 +1,6 @@
 import type { Category, DropSource, Extraction, Repeat } from './types'
 import { toISO } from './format'
+import { downscaleForUpload } from './image'
 
 /**
  * Everything the app knows about "reading a drop" goes through this one
@@ -23,6 +24,22 @@ export class UnreadableDropError extends Error {
   constructor(message = 'We could not read this drop.') {
     super(message)
     this.name = 'UnreadableDropError'
+  }
+}
+
+/** The backend is reachable but has no model key, so nothing can be read yet. */
+export class ExtractorNotConfiguredError extends Error {
+  constructor(message = 'AI extraction is not set up on the server yet.') {
+    super(message)
+    this.name = 'ExtractorNotConfiguredError'
+  }
+}
+
+/** The free tier's limit was hit. Waiting actually helps, so say so. */
+export class RateLimitedError extends Error {
+  constructor(message = 'The AI free limit was reached. Try again in a minute.') {
+    super(message)
+    this.name = 'RateLimitedError'
   }
 }
 
@@ -160,9 +177,11 @@ export class MockExtractor implements Extractor {
 
 /**
  * Posts the drop to a backend that calls a vision model and returns an
- * `Extraction`. Set `VITE_EXTRACT_ENDPOINT` in `.env.local` to turn it on;
- * see README "Wiring real AI extraction" for the response shape. The key
- * lives on the server, never in this bundle.
+ * `Extraction`. `api/extract.ts` in this repo is that backend, running on
+ * Vercel against Gemini. Set `VITE_EXTRACT_ENDPOINT=/api/extract` to switch
+ * over; without it the mock is used, so a misconfigured deploy degrades to a
+ * working app rather than a broken one. The key lives on the server, never in
+ * this bundle.
  */
 export class HttpExtractor implements Extractor {
   readonly name = 'http'
@@ -171,14 +190,21 @@ export class HttpExtractor implements Extractor {
 
   async extract(source: DropSource, onStep?: (step: number) => void, signal?: AbortSignal): Promise<Extraction> {
     onStep?.(0)
+
+    // Shrink before it leaves the device — faster upload, smaller share of
+    // the model's free quota, and inside the serverless body limit.
+    const upload = await downscaleForUpload(source.file)
+
     const body = new FormData()
-    body.append('file', source.file)
+    body.append('file', upload)
     body.append('kind', source.kind)
     body.append('today', toISO(new Date()))
 
     onStep?.(1)
     const res = await fetch(this.endpoint, { method: 'POST', body, signal })
     if (res.status === 422) throw new UnreadableDropError()
+    if (res.status === 503) throw new ExtractorNotConfiguredError()
+    if (res.status === 429) throw new RateLimitedError()
     if (!res.ok) throw new Error(`Extraction failed (${res.status})`)
 
     onStep?.(3)

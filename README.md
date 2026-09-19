@@ -96,9 +96,67 @@ and each one fires at most once per occurrence. Keeping it on your home screen a
 opening it daily is what makes it reliable. A real push backend would call
 `dueReminders()` from `src/lib/reminders.ts` on a schedule instead.
 
-## Wiring real AI extraction
+## Deploy to Vercel
 
-Everything that reads a drop goes through one interface in `src/lib/extract.ts`:
+The repo is ready to deploy as-is: the Vite build is the site, and `api/extract.ts`
+becomes a serverless function at `/api/extract` automatically.
+
+**1. Push to GitHub**, then in Vercel: *Add New → Project → Import*. Vercel detects
+Vite; leave the build settings alone.
+
+**2. Get a free Gemini key** at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+No credit card.
+
+**3. Set the environment variables** (Project → Settings → Environment Variables):
+
+| Name | Value | Why |
+|---|---|---|
+| `GEMINI_API_KEY` | your key | Server-side only. Never reaches the browser. Also read from `API_KEY_LIFEDROP`, `GOOGLE_API_KEY` or `GEMINI_KEY`, whichever is set. |
+| `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
+| `GEMINI_MODEL` | *(optional)* `gemini-2.5-flash` | Override if the model id changes. |
+
+**4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
+before you set it will still use the mock.
+
+Leaving `VITE_EXTRACT_ENDPOINT` unset is a safe default — the app runs on the mock
+extractor rather than breaking.
+
+### What HTTPS unlocks
+
+These only work on a real HTTPS origin, which is why a LAN address is not enough:
+
+- the **Install app** button (`beforeinstallprompt` needs a secure context)
+- the **camera**
+- **notifications**
+
+## AI extraction
+
+`api/extract.ts` takes the drop, asks Gemini to read it, and returns an
+`Extraction`. The prompt is tuned for Philippine bills and receipts — peso amounts,
+local date conventions, and which date actually matters per category (due date for a
+bill, renewal for a subscription, expiry for a warranty).
+
+The image is downscaled to 1600px on the device before upload (`src/lib/image.ts`),
+which keeps requests small, fast and well inside the free tier. Your full-size
+original is still kept locally.
+
+Status codes the client understands:
+
+| Code | Meaning | What the user sees |
+|---|---|---|
+| 200 | a reading | Review screen, every field editable |
+| 422 | genuinely unreadable | "We could not read this one" + retry / enter by hand |
+| 429 | free tier exhausted | "The free limit was reached" + retry / enter by hand |
+| 503 | `GEMINI_API_KEY` not set | "AI reading is not set up yet" + enter by hand |
+| 502 | upstream or network failure | "That upload did not finish" + retry |
+
+Free-tier limits move, so check
+[ai.google.dev/gemini-api/docs/pricing](https://ai.google.dev/gemini-api/docs/pricing)
+rather than trusting a number written here.
+
+### Using a different provider
+
+Nothing in the app knows about Gemini. `src/lib/extract.ts` defines one interface:
 
 ```ts
 interface Extractor {
@@ -106,41 +164,9 @@ interface Extractor {
 }
 ```
 
-`getExtractor()` returns `MockExtractor` unless `VITE_EXTRACT_ENDPOINT` is set, in
-which case it returns `HttpExtractor` pointed at your backend. No screen imports an
-implementation directly, so this is the only switch.
-
-```bash
-# .env.local
-VITE_EXTRACT_ENDPOINT=https://your-api.example.com/extract
-```
-
-Your endpoint receives `multipart/form-data` with `file`, `kind`
-(`camera` | `upload` | `paste` | `manual`) and `today` (`yyyy-mm-dd`), and returns:
-
-```json
-{
-  "title": "Internet Bill",
-  "merchant": "Globe Fiber",
-  "amount": 1899,
-  "category": "bill",
-  "date": "2026-09-28",
-  "time": null,
-  "repeat": "monthly",
-  "remindDaysBefore": 2,
-  "reference": "Account ending 4421",
-  "notes": "Plan 1899 · unlimited",
-  "confidence": 0.94,
-  "uncertain": []
-}
-```
-
-Return **422** when the drop is genuinely unreadable — the app has a designed state
-for that. `confidence` below `REVIEW_THRESHOLD` (0.82) flags the drop for review and
-highlights the fields named in `uncertain`.
-
-Keep the model key on the server. The backend is where you would call a vision model
-with the image and this schema; the client never holds a credential.
+`getExtractor()` picks `HttpExtractor` when `VITE_EXTRACT_ENDPOINT` is set and
+`MockExtractor` otherwise. To swap in Groq, OpenRouter, Claude or anything else,
+rewrite the body of `api/extract.ts` and keep its status codes. No screen changes.
 
 ## Layout
 
@@ -154,6 +180,8 @@ src/
     reminders.ts   due-reminder evaluation and notification sweep
     format.ts      peso, dates, urgency, repeat arithmetic
     icons.ts       the 24px icon grid
+    image.ts       downscales a capture before upload
+    install.ts     PWA install prompt, per platform
     lock.ts        PIN hashing, attempt limiting, WebAuthn enrolment
     seed.ts        sample vault, built on dates relative to first open
   components/      Icon, Brand, UI kit, DropCard, DropForm, PinPad, Sheet, Toast, States
@@ -170,6 +198,7 @@ public/
 ```bash
 npm run typecheck
 npm run build
+npm run test:api           # api/extract.ts against a stubbed Gemini, no key needed
 
 npm run preview &          # the two browser checks need it running
 npm run smoke              # drop -> process -> review -> save -> persists

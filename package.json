@@ -10,7 +10,8 @@
     "preview": "vite preview --host",
     "typecheck": "tsc -b --noEmit",
     "smoke": "node scripts/smoke.mjs .smoke",
-    "shots": "node scripts/screenshots.mjs .shots"
+    "shots": "node scripts/screenshots.mjs .shots",
+    "test:api": "node --experimental-strip-types scripts/api-test.ts"
   },
   "dependencies": {
     "idb": "^8.0.3",
@@ -20,6 +21,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@types/node": "^26.6.1",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",

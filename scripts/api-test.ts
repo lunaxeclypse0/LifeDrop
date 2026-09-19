@@ -1,0 +1,192 @@
+/**
+ * Exercises api/extract.ts without touching Gemini: the upstream call is
+ * stubbed, so the parts I can actually get wrong — request handling, status
+ * codes, and coercing the model's strings into an Extraction — are covered.
+ *
+ *   node --experimental-strip-types scripts/api-test.ts
+ */
+import handler from '../api/extract.ts'
+
+let passed = 0
+let failed = 0
+
+function check(name: string, ok: boolean, detail?: unknown) {
+  if (ok) {
+    passed++
+    console.log(`  ok    ${name}`)
+  } else {
+    failed++
+    console.log(`  FAIL  ${name}`, detail ?? '')
+  }
+}
+
+function post(file?: { name: string; type: string; bytes?: number }, today = '2026-09-19') {
+  const form = new FormData()
+  if (file) {
+    const blob = new Blob([new Uint8Array(file.bytes ?? 2048)], { type: file.type })
+    form.append('file', new File([blob], file.name, { type: file.type }))
+  }
+  form.append('kind', 'upload')
+  form.append('today', today)
+  return new Request('http://localhost/api/extract', { method: 'POST', body: form })
+}
+
+/** Stubs the one outbound call the handler makes. */
+function stubGemini(body: unknown, status = 200) {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    })) as typeof fetch
+}
+
+function modelSays(obj: Record<string, unknown>) {
+  return { candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] }
+}
+
+const IMG = { name: 'bill.jpg', type: 'image/jpeg' }
+
+// --- no key on the server -------------------------------------------------
+delete process.env.GEMINI_API_KEY
+{
+  const res = await handler(post(IMG))
+  check('503 when GEMINI_API_KEY is unset', res.status === 503, res.status)
+  const body = (await res.json()) as { error: string }
+  check('  and names the reason', body.error === 'not_configured', body)
+}
+
+// The key is accepted under any of the documented aliases.
+for (const alias of ['GEMINI_API_KEY', 'API_KEY_LIFEDROP', 'GOOGLE_API_KEY', 'GEMINI_KEY']) {
+  for (const k of ['GEMINI_API_KEY', 'API_KEY_LIFEDROP', 'GOOGLE_API_KEY', 'GEMINI_KEY']) {
+    delete process.env[k]
+  }
+  process.env[alias] = 'test-key'
+  stubGemini(modelSays({ readable: 'no', title: '', category: 'document', confidence: '0' }))
+  const res = await handler(post(IMG))
+  check(`key found via ${alias}`, res.status === 422, res.status)
+}
+
+process.env.GEMINI_API_KEY = 'test-key'
+
+// --- request shape --------------------------------------------------------
+{
+  const res = await handler(new Request('http://localhost/api/extract', { method: 'GET' }))
+  check('405 on GET', res.status === 405, res.status)
+}
+{
+  const res = await handler(post(undefined))
+  check('400 when no file is attached', res.status === 400, res.status)
+}
+{
+  const res = await handler(post({ name: 'notes.txt', type: 'text/plain' }))
+  check('422 for a file type that cannot be read', res.status === 422, res.status)
+}
+
+// --- the model says it could not read it ----------------------------------
+{
+  stubGemini(modelSays({ readable: 'no', title: '', category: 'document', confidence: '0' }))
+  const res = await handler(post(IMG))
+  check('422 when the model reports unreadable', res.status === 422, res.status)
+}
+
+// --- a good reading, with everything as strings ---------------------------
+{
+  stubGemini(
+    modelSays({
+      readable: 'yes',
+      title: 'Internet Bill',
+      merchant: 'Globe Fiber',
+      amount: '1,899.00',
+      category: 'bill',
+      date: '2026-09-28',
+      time: '',
+      repeat: 'monthly',
+      remindDaysBefore: '2',
+      reference: 'Account ending 4421',
+      notes: 'Plan 1899',
+      confidence: '0.94',
+      uncertain: [],
+    }),
+  )
+  const res = await handler(post(IMG))
+  check('200 on a good reading', res.status === 200, res.status)
+  const b = (await res.json()) as Record<string, unknown>
+  check('  amount "1,899.00" -> 1899', b.amount === 1899, b.amount)
+  check('  remindDaysBefore "2" -> 2', b.remindDaysBefore === 2, b.remindDaysBefore)
+  check('  confidence "0.94" -> 0.94', b.confidence === 0.94, b.confidence)
+  check('  empty time -> null', b.time === null, b.time)
+  check('  category passes through', b.category === 'bill', b.category)
+  check('  title passes through', b.title === 'Internet Bill', b.title)
+}
+
+// --- a sloppy reading must still produce a valid Extraction ---------------
+{
+  stubGemini(
+    modelSays({
+      readable: 'yes',
+      title: '',
+      merchant: '  Meralco  ',
+      amount: '',
+      category: 'not-a-category',
+      date: '28/09/2026',
+      time: '25:99',
+      repeat: 'fortnightly',
+      remindDaysBefore: '',
+      confidence: '7',
+      uncertain: ['amount', 42],
+    }),
+  )
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('empty title -> a usable fallback', b.title === 'Untitled drop', b.title)
+  check('  merchant is trimmed', b.merchant === 'Meralco', b.merchant)
+  check('  empty amount -> null', b.amount === null, b.amount)
+  check('  bad category -> document', b.category === 'document', b.category)
+  check('  bad date -> today, not a crash', b.date === '2026-09-19', b.date)
+  check('  out-of-range time -> null', b.time === null, b.time)
+  check('  bad repeat -> none', b.repeat === 'none', b.repeat)
+  check('  confidence clamped to 1', b.confidence === 1, b.confidence)
+  check('  non-string dropped from uncertain', JSON.stringify(b.uncertain) === '["amount"]', b.uncertain)
+}
+
+// --- a date that looks right but does not exist ---------------------------
+{
+  stubGemini(
+    modelSays({
+      readable: 'yes', title: 'Bill', category: 'bill',
+      date: '2026-02-31', time: '08:20', confidence: '0.9',
+    }),
+  )
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('Feb 31 -> falls back to today', b.date === '2026-09-19', b.date)
+  check('  valid time is kept', b.time === '08:20', b.time)
+}
+
+// --- oversized upload -----------------------------------------------------
+{
+  const res = await handler(post({ ...IMG, bytes: 5 * 1024 * 1024 }))
+  check('413 when the file is over the edge body limit', res.status === 413, res.status)
+}
+
+// --- upstream problems ----------------------------------------------------
+{
+  stubGemini({ error: 'quota' }, 429)
+  const res = await handler(post(IMG))
+  check('429 is passed through as rate limiting', res.status === 429, res.status)
+}
+{
+  stubGemini({ error: 'boom' }, 500)
+  const res = await handler(post(IMG))
+  check('upstream 500 -> 502', res.status === 502, res.status)
+}
+{
+  globalThis.fetch = (async () => {
+    throw new Error('network down')
+  }) as typeof fetch
+  const res = await handler(post(IMG))
+  check('network failure -> 502', res.status === 502, res.status)
+}
+
+console.log(`\n${passed} passed, ${failed} failed`)
+process.exit(failed ? 1 : 0)

@@ -38,8 +38,18 @@ export type InstallState =
   | 'manual' // installable, but the user has to do it by hand (iOS)
   | 'unavailable' // desktop browser with no install path, or unsupported
 
+declare global {
+  interface Window {
+    __ldInstallPrompt: BeforeInstallPromptEvent | null
+  }
+}
+
 export function useInstall() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
+  // The inline script in index.html catches the event before React exists,
+  // so start from whatever it already stashed.
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
+    () => (typeof window === 'undefined' ? null : (window.__ldInstallPrompt ?? null)),
+  )
   const [installed, setInstalled] = useState(isStandalone)
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -50,6 +60,8 @@ export function useInstall() {
   })
 
   useEffect(() => {
+    // Fires when the inline catcher stashes one after this component mounted.
+    const onReady = () => setDeferred(window.__ldInstallPrompt ?? null)
     const onPrompt = (e: Event) => {
       e.preventDefault() // stop the browser's own mini-infobar
       setDeferred(e as BeforeInstallPromptEvent)
@@ -57,10 +69,13 @@ export function useInstall() {
     const onInstalled = () => {
       setInstalled(true)
       setDeferred(null)
+      window.__ldInstallPrompt = null
     }
+    window.addEventListener('ld-install-ready', onReady)
     window.addEventListener('beforeinstallprompt', onPrompt)
     window.addEventListener('appinstalled', onInstalled)
     return () => {
+      window.removeEventListener('ld-install-ready', onReady)
       window.removeEventListener('beforeinstallprompt', onPrompt)
       window.removeEventListener('appinstalled', onInstalled)
     }
@@ -79,7 +94,9 @@ export function useInstall() {
     if (!deferred) return false
     await deferred.prompt()
     const { outcome } = await deferred.userChoice
-    setDeferred(null) // a captured prompt can only be replayed once
+    // A captured prompt can only be replayed once; drop it from both places.
+    setDeferred(null)
+    window.__ldInstallPrompt = null
     return outcome === 'accepted'
   }
 
