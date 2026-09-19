@@ -314,31 +314,31 @@ export const useApp = create<State>((set, get) => ({
   async signUp(username, password) {
     if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
     const name = normalizeUsername(username)
-    const { data, error } = await supabase().auth.signUp({
-      email: usernameToEmail(name),
-      password,
-      options: { data: { username: name } },
-    })
-    if (error) {
-      // Supabase speaks in emails; the user only ever typed a username.
-      if (/already registered|already exists/i.test(error.message)) {
-        return 'That username is taken. Try another.'
-      }
-      if (/email rate limit|over_email_send/i.test(error.message)) {
-        return 'Sign-ups are blocked because this project still sends confirmation emails. Turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email).'
-      }
-      return error.message
-    }
-    // No session means Supabase is waiting on an email confirmation — which can
-    // never arrive at a .invalid address. Say so rather than pretend we are in.
-    if (!data.session) {
-      return 'This project is still set to confirm sign-ups by email, and username accounts have no inbox. Turn off "Confirm email" in Supabase, then try again.'
+
+    // Created server-side so the account comes back already confirmed. Going
+    // through Supabase's own sign-up would wait on an email that a .invalid
+    // address can never receive. See api/signup.ts.
+    let created: Response
+    try {
+      created = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: name, password }),
+      })
+    } catch {
+      return 'Could not reach the server. Check your connection and try again.'
     }
 
-    // Anything dropped before signing up belongs to this account now.
+    if (!created.ok) {
+      const body = (await created.json().catch(() => ({}))) as { message?: string }
+      return body.message ?? 'Could not create that account.'
+    }
+
+    // Straight in — the account exists and needs no confirmation.
+    const problem = await get().signIn(name, password)
+    if (problem) return problem
+
     await adoptLocalDrops()
-    set({ user: data.user })
-    await get().patchSettings({ name, email: usernameToEmail(name), onboarded: true })
     void get().syncNow()
     return null
   },

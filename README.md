@@ -111,12 +111,14 @@ The cost is stated on the sign-up screen: with no real email there is no
 password reset. The domain in `src/lib/username.ts` must never change once
 anyone has signed up — it is how their account is found.
 
-**Turn "Confirm email" OFF** in Supabase (Authentication → Sign In / Providers →
-Email). This is not optional. With it on, every sign-up tries to post a
-confirmation to an address that cannot receive one; the free tier's email rate
-limit is reached within a few attempts and sign-up fails with
-`over_email_send_rate_limit`. The app now detects both cases and says which
-setting to change, but the setting still has to be changed.
+Sign-up does **not** go through `supabase.auth.signUp`. That honours the
+project's "Confirm email" setting, which cannot work here — a `.invalid`
+address receives nothing, so the account would never be confirmed, and the free
+tier's email rate limit jams after a few attempts.
+
+Instead `api/signup.ts` creates the user through the admin API with
+`email_confirm: true`, on the server, using `SUPABASE_SECRET_KEY`. The client
+then signs in normally. Nothing depends on a dashboard toggle.
 
 **Setting it up**
 
@@ -183,6 +185,7 @@ No credit card.
 | `GEMINI_API_KEY` | your key | Server-side only. Never reaches the browser. Also read from `API_KEY_LIFEDROP`, `GOOGLE_API_KEY` or `GEMINI_KEY`, whichever is set. |
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
 | `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | Override if the model id changes. |
+| `SUPABASE_SECRET_KEY` | your secret key | **Server-only — never prefix it with `VITE_`.** Lets `api/signup.ts` create confirmed accounts. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
 before you set it will still use the mock.
