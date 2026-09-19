@@ -1,131 +1,153 @@
 /**
- * The dark theme's frosted-glass treatment.
+ * The dark theme's frosted glass.
  *
- * Every rule here is scoped to `[data-theme='dark']`, so light mode stays the
- * white-minimalist design it was asked to be and the theme switch keeps meaning
- * something. This file can be removed entirely and the app still works.
+ * Everything here is scoped to `[data-theme='dark']`, so light mode stays the
+ * white-minimalist design it was asked to be. Delete the file and the app is
+ * unchanged.
  *
- * Two decisions worth knowing about:
+ * The first attempt at this looked generic, and the reason is worth writing
+ * down: it put translucent panels over a flat gradient. Frosted glass reads as
+ * glass because you can see something *through* it, softened — a blur with
+ * nothing behind it is just a lighter box with an outline. So the ground here
+ * carries real detail: several small, bright, overlapping light sources and a
+ * fine grain, and the panels genuinely blur it. As a card scrolls it passes
+ * over different light and changes, which is the part that cannot be faked.
  *
- * The ground is drawn in CSS, not shipped as an image. A pair of PNGs would be
- * two more things to download, would band on wide screens, and would need a
- * second file for every size; four radial gradients cost nothing and are sharp
- * at any dimension.
- *
- * `backdrop-filter` is used only where something actually passes behind the
- * panel — the drop sheet and the modals. In this app the top bar and the nav are
- * siblings of the scroll area rather than overlays, so nothing ever slides
- * under them; blurring there would buy a real per-frame cost on a phone and
- * change not one pixel. Everything else is translucent over the ground, which
- * is what makes each panel pick up the light it happens to be sitting on.
+ * The cost is real: `backdrop-filter` on every card in a scrolling list is the
+ * expensive case on a phone. The blur radius is kept moderate for that reason,
+ * and if scrolling ever feels sticky, the one line to change is the
+ * `backdrop-filter` on the panel rule below.
  */
 
 :root[data-theme='dark'] {
-  /* Two stops, so a panel has a lit edge and a shaded one. Kept low: every
-     point of white here lifts the panel and costs contrast on the muted text
-     sitting on it, which measured under 4.5:1 at 0.075. */
-  --glass-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.016));
-  --glass-edge: rgba(255, 255, 255, 0.14);
-  /* The hairline of light along the top edge is what reads as "glass" rather
-     than "grey box". */
-  --glass-lip: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --glass-cast: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  /* A single bright hairline along the top edge is what reads as a pane
+     catching light. A uniform outline all the way round reads as a box. */
+  --glass-lip: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --glass-cast: 0 18px 44px -22px rgba(0, 0, 0, 0.75);
+  --glass-blur: blur(18px) saturate(150%);
 }
 
 /* ---------- the ground ---------- */
 
+/**
+ * Drawn rather than shipped as an image: it stays sharp at any size, costs no
+ * download, and can be tuned in one place. The grain is what stops the blur
+ * looking like a flat wash — it gives the glass something to soften.
+ */
 :root[data-theme='dark'] .device::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(62% 42% at 16% 6%, rgba(18, 190, 232, 0.20), transparent 70%),
-    radial-gradient(58% 38% at 90% 20%, rgba(140, 134, 255, 0.19), transparent 72%),
-    radial-gradient(72% 46% at 74% 90%, rgba(226, 72, 178, 0.13), transparent 70%),
-    radial-gradient(52% 34% at 6% 74%, rgba(61, 220, 245, 0.11), transparent 70%);
+  background-image:
+    /* A header sits straight on this ground with no panel to sit in, and the
+       brightest light happens to be at the top. This lifts off by a third of
+       the way down, so titles stay readable and the body stays vivid. */
+    linear-gradient(180deg, rgba(6, 10, 20, 0.62), rgba(6, 10, 20, 0.18) 18%, transparent 34%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.26'/%3E%3C/svg%3E"),
+    radial-gradient(38% 26% at 12% 4%, rgba(34, 211, 238, 0.46), transparent 70%),
+    radial-gradient(30% 20% at 84% 12%, rgba(139, 124, 255, 0.44), transparent 70%),
+    radial-gradient(34% 24% at 92% 46%, rgba(232, 84, 190, 0.30), transparent 72%),
+    radial-gradient(42% 28% at 22% 58%, rgba(76, 70, 242, 0.38), transparent 72%),
+    radial-gradient(36% 24% at 78% 84%, rgba(18, 190, 232, 0.32), transparent 70%),
+    radial-gradient(30% 22% at 8% 92%, rgba(167, 139, 250, 0.30), transparent 70%);
+  background-size: auto, 180px 180px, auto, auto, auto, auto, auto, auto;
+  /* Enough to texture the blur, not enough to see as dirt. */
+  opacity: 0.6;
 }
 
-/* The ground is inside .device, so everything drawn after it needs to say so. */
-:root[data-theme='dark'] .screen,
-:root[data-theme='dark'] .topbar,
-:root[data-theme='dark'] .scrollhost {
+/* The ground sits at z-index 0 inside .device, so the app says so explicitly. */
+:root[data-theme='dark'] :is(.screen, .topbar, .scrollhost) {
   position: relative;
   z-index: 1;
 }
 
-/* Chrome is translucent so the ground continues through it rather than
-   stopping at a seam. */
-:root[data-theme='dark'] .topbar {
-  background: rgba(8, 13, 24, 0.55);
+/**
+ * Transparent, not tinted. A translucent top bar over a ground that shows
+ * through the scroll area below it drew a hard horizontal seam across every
+ * screen — the "border" that was never asked for. Nothing scrolls behind the
+ * bar in this layout, so it needs no background at all.
+ */
+:root[data-theme='dark'] :is(.topbar, .topbar.bordered) {
+  background: none;
+  border-bottom-color: transparent;
 }
+
 :root[data-theme='dark'] .nav {
-  background: rgba(8, 13, 24, 0.62);
-  border-top-color: var(--glass-edge);
+  background: rgba(7, 11, 20, 0.72);
+  border-top-color: rgba(255, 255, 255, 0.07);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
 /* ---------- panels ---------- */
 
-:root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt) {
-  /* The near-black layer under the glass is what keeps a panel readable when it
-     happens to be sitting on a bright part of the ground. Without it the
-     captions on those panels measured 4.1:1, and the alternative — lifting the
-     muted colour until it survived the worst spot — would have collapsed it
-     into --text2 everywhere else. */
-  background: var(--glass-fill), rgba(8, 13, 24, 0.5);
-  border-color: var(--glass-edge);
-  box-shadow: var(--glass-lip), var(--glass-cast);
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
+    /* Low fill on purpose. What should make a panel visible is the light it
+       picks up from the ground behind it, not white paint on the front. */
+    /* The near-black base is 44% — light enough that the ground still reads
+       straight through the panel, dark enough that a caption sitting over a
+       bright part of it keeps 4.5:1 with room to spare. */
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
+      rgba(9, 13, 24, 0.44);
+    border-color: var(--glass-edge);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+
+  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt) {
+    box-shadow: var(--glass-lip), var(--glass-cast);
+  }
+  :root[data-theme='dark'] :is(.iconbtn, .btn.secondary) {
+    box-shadow: var(--glass-lip);
+  }
+
+  :root[data-theme='dark'] :is(.sheet, .modal) {
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 -18px 60px rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(26px) saturate(150%);
+    backdrop-filter: blur(26px) saturate(150%);
+  }
 }
 
-/* Inputs read as recessed rather than raised: no cast shadow, and the lip
-   belongs at the bottom of a well, not the top of a pane. */
-:root[data-theme='dark'] :is(.field .box, .searchbar) {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
-  border-color: var(--glass-edge);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+/* Without backdrop-filter a transparent panel would show the ground through it
+   unsoftened, so those panels have to carry their own body instead. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
+    background: rgba(16, 23, 38, 0.92);
+    border-color: var(--glass-edge);
+    box-shadow: var(--glass-lip);
+  }
+  :root[data-theme='dark'] :is(.sheet, .modal) {
+    background: #121A2B;
+    border: 1px solid var(--glass-edge);
+  }
 }
 
-:root[data-theme='dark'] .iconbtn {
-  background: var(--glass-fill);
-  border-color: var(--glass-edge);
-  box-shadow: var(--glass-lip);
-}
 :root[data-theme='dark'] .iconbtn.plain {
   background: none;
   border-color: transparent;
   box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-:root[data-theme='dark'] .btn.secondary {
-  background: var(--glass-fill);
+/* Inputs read as recessed rather than raised: no lip along the top, and a
+   shadow that falls inward. */
+:root[data-theme='dark'] :is(.field .box, .searchbar) {
+  background: rgba(255, 255, 255, 0.04);
   border-color: var(--glass-edge);
-  box-shadow: var(--glass-lip);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
-/* A row divider inside a glass panel has to be lighter than a border on an
-   opaque surface, or it reads as a crack. */
+/* A divider inside a glass panel has to be lighter than a border on an opaque
+   surface, or it reads as a crack. */
 :root[data-theme='dark'] .row {
-  border-bottom-color: rgba(255, 255, 255, 0.07);
-}
-
-/* ---------- where there is genuinely something behind ---------- */
-
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  :root[data-theme='dark'] :is(.sheet, .modal) {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 24px 70px rgba(0, 0, 0, 0.5);
-    -webkit-backdrop-filter: blur(26px) saturate(145%);
-    backdrop-filter: blur(26px) saturate(145%);
-  }
-}
-
-/* Without backdrop-filter the same panel has to be opaque enough to read on
-   its own, or the content behind it shows straight through. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-theme='dark'] :is(.sheet, .modal) {
-    background: #131B2C;
-    border: 1px solid var(--glass-edge);
-  }
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }

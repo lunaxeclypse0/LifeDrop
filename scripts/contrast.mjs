@@ -66,6 +66,14 @@ for (const [name0, hash] of ROUTES) {
       if (r.top < 0 || r.bottom > innerHeight || r.left < 0 || r.right > innerWidth) continue
       const cs = getComputedStyle(el)
       if (cs.visibility === 'hidden' || cs.opacity === '0') continue
+      // The sample is taken just above the text. If something else is painted
+      // there -- a toast over a card, a sheet over the page -- the reading
+      // would compare this element's colour against an unrelated background.
+      const sx = r.x + 3
+      const sy = r.y - 3
+      const over = document.elementFromPoint(sx, sy)
+      if (!over || !(over.contains(el) || el.contains(over) || over === el)) continue
+
       out.push({
         color: cs.color,
         size: parseFloat(cs.fontSize),

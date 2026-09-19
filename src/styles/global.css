@@ -96,7 +96,9 @@ a { color: var(--primary-ink); text-decoration: none; }
 
 .topbar {
   flex: none;
-  padding: calc(var(--safe-top) + 14px) var(--gutter) 10px;
+  /* 10px here put the title almost touching the chips and the first section
+     label underneath it. A heading needs room below it to read as a heading. */
+  padding: calc(var(--safe-top) + 14px) var(--gutter) 18px;
   /* 12px between 44px buttons reads as one run of boxes; 15px separates them. */
   display: flex; align-items: center; gap: 15px;
   background: var(--bg);
@@ -128,7 +130,7 @@ a { color: var(--primary-ink); text-decoration: none; }
   text-transform: uppercase; color: var(--muted);
 }
 .sechead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 30px 0 12px; }
-.sechead.first { margin-top: 10px; }
+.sechead.first { margin-top: 14px; }
 .sechead button {
   /* Real padding, not a transparent overlay — an overlay here gets covered by
      whatever card sits immediately above the section head. */
