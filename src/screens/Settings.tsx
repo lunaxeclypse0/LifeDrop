@@ -420,7 +420,7 @@ export function Help() {
               <button
                 onClick={() => setOpen(open === i ? null : i)}
                 aria-expanded={open === i}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 44 }}
               >
                 <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600 }}>{t.q}</span>
                 <Icon

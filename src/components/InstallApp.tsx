@@ -121,7 +121,7 @@ export function InstallBanner() {
         >
           Install
         </button>
-        <button onClick={dismiss} aria-label="Not now" style={{ flex: 'none', padding: 4 }}>
+        <button onClick={dismiss} aria-label="Not now" className="taphit" style={{ flex: 'none', padding: 4 }}>
           <Icon name="close" size={16} color="var(--muted)" width={2} />
         </button>
       </div>

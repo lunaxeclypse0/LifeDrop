@@ -134,8 +134,10 @@ export function SetPin() {
 
   return (
     <div className="screen lockscreen">
+      {/* Outside lock-top: that block centres its children, which would float
+          the back button into the middle of the screen. */}
+      <TopBar back onBack={() => navigate(-1)} />
       <div className="lock-top">
-        <TopBar back onBack={() => navigate(-1)} />
         <h1 className="display" style={{ fontSize: 21, margin: '10px 0 5px' }}>
           {COPY[stage].title}
         </h1>

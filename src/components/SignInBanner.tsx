@@ -77,6 +77,7 @@ export function SignInBanner() {
           }
         }}
         aria-label="Not now"
+        className="taphit"
         style={{ flex: 'none', padding: 4 }}
       >
         <Icon name="close" size={16} color="var(--muted)" width={2} />

@@ -269,6 +269,8 @@ npm run preview &          # the two browser checks need it running
 npm run smoke              # drop -> process -> review -> save -> persists
 node scripts/interactions.mjs   # mark-paid rollover, archive/undo, search, validation
 node scripts/lock.mjs           # PIN set -> reload gate -> wrong PIN -> lockout
+npm run audit              # every screen x both themes: overflow, tap targets,
+                           # overlaps, clipped text, console errors
 npm run shots              # screenshots of every main screen, light and dark
 ```
 
@@ -288,7 +290,12 @@ npm run shots              # screenshots of every main screen, light and dark
   deuteranopia), so Spending uses labelled meter rows and a single-hue trend rather
   than a donut or a stacked bar.
 - Status is always icon + word + colour, never colour alone.
-- Touch targets are 44px or larger; `prefers-reduced-motion` collapses every
-  animation and the processing sequence still completes.
+- Touch targets are checked by `npm run audit`, which measures what actually
+  responds to a tap rather than the painted size — several controls stay
+  visually small and grow their hit area with a transparent `::after`. Where
+  that overlay could be covered by a neighbour, the control gets real padding
+  instead.
+- `prefers-reduced-motion` collapses every animation and the processing
+  sequence still completes.
 - No raster imagery ships with the app. Where a real photo belongs and none exists,
   a labelled document placeholder is drawn instead.

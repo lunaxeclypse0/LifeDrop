@@ -123,7 +123,7 @@ export function Home({ onDrop }: { onDrop: () => void }) {
             </span>
           </button>
         ) : (
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <div className="caption">{greeting()}</div>
             {
               // No invented name — ask for one instead.
@@ -134,16 +134,21 @@ export function Home({ onDrop }: { onDrop: () => void }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
+                  // Tall enough to tap, and bounded so it cannot slide under
+                  // the icon buttons on a narrow screen.
+                  minHeight: 40,
+                  maxWidth: '100%',
+                  overflow: 'hidden',
                   fontFamily: 'Manrope, sans-serif',
                   fontWeight: 800,
-                  fontSize: 21,
+                  fontSize: 20,
                   letterSpacing: '-.6px',
                   lineHeight: 1.2,
                   whiteSpace: 'nowrap',
                   color: 'var(--primary-ink)',
                 }}
               >
-                Add your name
+                Add name
                 <Icon name="chev" size={16} width={2.4} />
               </button>
             }

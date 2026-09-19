@@ -128,7 +128,13 @@ a { color: var(--primary-ink); text-decoration: none; }
 }
 .sechead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 30px 0 12px; }
 .sechead.first { margin-top: 10px; }
-.sechead button { font-size: 13px; font-weight: 700; color: var(--primary-ink); }
+.sechead button {
+  /* Real padding, not a transparent overlay — an overlay here gets covered by
+     whatever card sits immediately above the section head. */
+  display: flex; align-items: center; min-height: 40px;
+  margin: -10px -8px -10px 0; padding: 0 8px;
+  font-size: 13px; font-weight: 700; color: var(--primary-ink);
+}
 
 .page-title { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 29px; letter-spacing: -1px; line-height: 1.16; margin: 0; }
 .body2 { font-size: 14px; color: var(--text2); line-height: 1.55; }
@@ -169,6 +175,9 @@ a { color: var(--primary-ink); text-decoration: none; }
   border-color: var(--primary);
   box-shadow: 0 0 0 1px var(--primary);
 }
+/* the reveal-password eye and friends */
+.field .box > button { position: relative; display: flex; }
+.field .box > button::after { content: ''; position: absolute; inset: -13px; }
 .searchbar:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 1px var(--primary);
@@ -189,6 +198,8 @@ a { color: var(--primary-ink); text-decoration: none; }
   border-radius: 14px; padding: 0 14px; min-height: 48px;
 }
 .searchbar input { flex: 1; min-width: 0; padding: 12px 0; font-size: 15px; }
+.searchbar > button { position: relative; display: flex; }
+.searchbar > button::after { content: ''; position: absolute; inset: -12px; }
 
 /* ---------- chips ---------- */
 
@@ -204,7 +215,7 @@ a { color: var(--primary-ink); text-decoration: none; }
 }
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
-  min-height: 36px; padding: 7px 14px; border-radius: 12px;
+  min-height: 40px; padding: 9px 14px; border-radius: 12px;
   font-size: 13.5px; font-weight: 600; white-space: nowrap;
   background: var(--surface); color: var(--text2); border: 1px solid var(--border);
 }
@@ -282,6 +293,10 @@ a { color: var(--primary-ink); text-decoration: none; }
   border-bottom: 1px solid var(--hair);
 }
 .row:last-child { border-bottom: 0; }
+.row > button, .row button.rowline {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 44px;
+}
 .row .mid { flex: 1; min-width: 0; }
 .row .t { display: block; font-size: 14.5px; font-weight: 600; }
 .row .d { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text2); line-height: 1.45; }
@@ -299,6 +314,12 @@ a { color: var(--primary-ink); text-decoration: none; }
 .toggle {
   flex: none; position: relative; width: 46px; height: 28px; border-radius: 999px;
   background: var(--border); transition: background var(--t-fast) ease;
+}
+/* A 28px track is comfortable to look at and awkward to hit. This grows the
+   tap area to 44px without moving a pixel of the visible switch — the same
+   trick is used below for every other small control. */
+.toggle::after {
+  content: ''; position: absolute; inset: -8px -6px;
 }
 .toggle.on { background: var(--primary); }
 .toggle i {
@@ -369,6 +390,11 @@ a { color: var(--primary-ink); text-decoration: none; }
   animation: popIn var(--t-emphasis) var(--e-spring) both;
 }
 
+/* Small icon-only buttons that must stay visually small — install and sign-in
+   banner dismissals, and anything else with nothing but a glyph in it. */
+.taphit { position: relative; }
+.taphit::after { content: ''; position: absolute; inset: -12px; }
+
 /* ---------- toast ---------- */
 
 .toast {
@@ -382,17 +408,22 @@ a { color: var(--primary-ink); text-decoration: none; }
 }
 :root[data-theme='dark'] .toast { background: var(--elev); color: var(--text); border: 1px solid var(--border); }
 .toast .mid { flex: 1; min-width: 0; }
-.toast button { flex: none; font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: .3px; }
+.toast button {
+  flex: none; display: flex; align-items: center; min-height: 40px;
+  margin: -10px 0; padding: 0 2px;
+  font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: .3px;
+}
 
 /* ---------- lock ---------- */
 
-.lockscreen { align-items: center; padding-bottom: calc(var(--safe-bottom) + 24px); }
+.lockscreen { padding-bottom: calc(var(--safe-bottom) + 24px); }
+.lockscreen > .topbar { align-self: stretch; }
+.lockscreen > .pinpad { align-self: center; }
 .lock-top {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 0 var(--gutter);
 }
-.lock-top .topbar { align-self: stretch; }
 
 .pin-dots { display: flex; gap: 14px; justify-content: center; }
 .pin-dot {
