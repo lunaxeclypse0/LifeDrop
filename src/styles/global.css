@@ -176,7 +176,16 @@ a { color: var(--primary-ink); text-decoration: none; }
 
 /* ---------- chips ---------- */
 
-.chiprow { display: flex; gap: 8px; overflow-x: auto; padding: 4px var(--gutter) 12px; margin: 0 calc(-1 * var(--gutter)); }
+/* Sits directly in the screen, which has no horizontal padding of its own, so
+   the gutter comes from this padding alone. A negative margin here would drag
+   the first chip flush against the edge. `scroll-padding` keeps that gutter
+   when the row is scrolled back to the start. */
+.chiprow {
+  display: flex; gap: 8px;
+  overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 4px var(--gutter) 12px;
+  scroll-padding-inline: var(--gutter);
+}
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
   min-height: 36px; padding: 7px 14px; border-radius: 12px;
