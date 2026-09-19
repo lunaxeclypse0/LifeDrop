@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "api", "scripts/api-test.ts", "scripts/signup-test.ts"]
+  "include": ["src", "api", "scripts/api-test.ts"]
 }

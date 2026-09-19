@@ -8,7 +8,6 @@ import { defaultLeadDays, rearm, runReminderSweep } from './reminders'
 import { clearFailures, createLock, NO_LOCK } from './lock'
 import { cloudConfigured, currentUser, supabase } from './supabase'
 import { adoptLocalDrops, resetSyncCursor, sync } from './sync'
-import { normalizeUsername, usernameToEmail } from './username'
 import type { User } from '@supabase/supabase-js'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -69,8 +68,8 @@ interface State {
   user: User | null
   syncing: boolean
   syncError: string | null
-  signUp: (username: string, password: string) => Promise<string | null>
-  signIn: (username: string, password: string) => Promise<string | null>
+  signUp: (email: string, password: string) => Promise<string | null>
+  signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
   syncNow: () => Promise<void>
 
@@ -311,59 +310,61 @@ export const useApp = create<State>((set, get) => ({
   syncing: false,
   syncError: null,
 
-  async signUp(username, password) {
+  async signUp(email, password) {
     if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
-    const name = normalizeUsername(username)
+    const address = email.trim().toLowerCase()
+    const { data, error } = await supabase().auth.signUp({ email: address, password })
 
-    // Created server-side so the account comes back already confirmed. Going
-    // through Supabase's own sign-up would wait on an email that a .invalid
-    // address can never receive. See api/signup.ts.
-    let created: Response
-    try {
-      created = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: name, password }),
-      })
-    } catch {
-      return 'Could not reach the server. Check your connection and try again.'
+    if (error) {
+      return /already registered|already exists/i.test(error.message)
+        ? 'That email already has an account. Sign in instead.'
+        : error.message
     }
 
-    if (!created.ok) {
-      const body = (await created.json().catch(() => ({}))) as { message?: string }
-      return body.message ?? 'Could not create that account.'
-    }
-
-    // Straight in — the account exists and needs no confirmation.
-    const problem = await get().signIn(name, password)
-    if (problem) return problem
+    // With "Confirm email" on, Supabase returns a user but no session until the
+    // link is clicked. Saying so is the whole difference between a confusing
+    // dead end and an obvious next step.
+    if (!data.session) return 'confirm'
 
     await adoptLocalDrops()
+    set({ user: data.user })
+    await get().patchSettings({
+      name: get().settings.name || address.split('@')[0],
+      email: address,
+      onboarded: true,
+    })
     void get().syncNow()
     return null
   },
 
-  async signIn(username, password) {
+  async signIn(email, password) {
     if (!cloudConfigured()) return 'Cloud accounts are not set up for this build.'
-    const name = normalizeUsername(username)
-    const email = usernameToEmail(name)
-    const { data, error } = await supabase().auth.signInWithPassword({ email, password })
+    const address = email.trim().toLowerCase()
+    const { data, error } = await supabase().auth.signInWithPassword({ email: address, password })
+
     if (error) {
+      if (/email not confirmed/i.test(error.message)) {
+        return 'This account still needs confirming. Check your email for the link.'
+      }
       return /invalid login credentials/i.test(error.message)
-        ? 'That username and password do not match.'
+        ? 'That email and password do not match.'
         : error.message
     }
 
     // A different person on this device must not inherit the last one's vault.
     const previous = get().settings.email
-    if (previous && previous !== email) {
+    if (previous && previous !== address) {
       await db.wipeAll()
       resetSyncCursor()
       set({ drops: [] })
     }
 
     set({ user: data.user })
-    await get().patchSettings({ name, email, onboarded: true })
+    await get().patchSettings({
+      name: get().settings.name || address.split('@')[0],
+      email: address,
+      onboarded: true,
+    })
     await get().syncNow()
     set({ drops: await db.allDrops() })
     return null

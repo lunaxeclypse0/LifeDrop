@@ -101,24 +101,9 @@ local profile — an account is the start of using the app, not an afterthought.
 "Use LifeDrop without an account" is still there for anyone who wants the
 device-only version, and without a project connected that is the only path.
 
-Sign-up asks for a **username**, not an email. Supabase has no username-only
-mode, so a username is mapped to a synthetic address — `lance@lifedrop.invalid`
-— and that is what is stored. `.invalid` is reserved by RFC 6761 and can never
-resolve, so nothing is ever delivered to a real inbox. Uniqueness comes free,
-because Supabase already refuses a duplicate address.
-
-The cost is stated on the sign-up screen: with no real email there is no
-password reset. The domain in `src/lib/username.ts` must never change once
-anyone has signed up — it is how their account is found.
-
-Sign-up does **not** go through `supabase.auth.signUp`. That honours the
-project's "Confirm email" setting, which cannot work here — a `.invalid`
-address receives nothing, so the account would never be confirmed, and the free
-tier's email rate limit jams after a few attempts.
-
-Instead `api/signup.ts` creates the user through the admin API with
-`email_confirm: true`, on the server, using `SUPABASE_SECRET_KEY`. The client
-then signs in normally. Nothing depends on a dashboard toggle.
+Sign-up is email and password, through Supabase's own auth. If the project has
+**Confirm email** on — the default — a new account gets a link to click before
+it can sign in, and the app says so on screen rather than looking broken.
 
 **Setting it up**
 
@@ -185,7 +170,6 @@ No credit card.
 | `GEMINI_API_KEY` | your key | Server-side only. Never reaches the browser. Also read from `API_KEY_LIFEDROP`, `GOOGLE_API_KEY` or `GEMINI_KEY`, whichever is set. |
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
 | `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | Override if the model id changes. |
-| `SUPABASE_SECRET_KEY` | your secret key | **Server-only — never prefix it with `VITE_`.** Lets `api/signup.ts` create confirmed accounts. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
 before you set it will still use the mock.
@@ -258,7 +242,6 @@ src/
     lock.ts        PIN hashing, attempt limiting, WebAuthn enrolment
     speech.ts      browser speech in and out
     supabase.ts    client and row mapping
-    username.ts    username <-> synthetic address, and validation
     sync.ts        outbox, pull/push, image upload
 supabase/
   schema.sql     tables, triggers and the row-level security policies

@@ -5,7 +5,6 @@ import { DropMark } from '../components/Brand'
 import { Icon } from '../components/Icon'
 import { useApp } from '../lib/store'
 import { cloudConfigured } from '../lib/supabase'
-import { USERNAME_MAX, validateUsername } from '../lib/username'
 
 /**
  * A real account this time: the password is checked by Supabase, and every
@@ -14,6 +13,7 @@ import { USERNAME_MAX, validateUsername } from '../lib/username'
  * vault away from everyone else's.
  */
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const MIN_PASSWORD = 8
 
 export function Account() {
@@ -26,11 +26,11 @@ export function Account() {
   const drops = useApp((s) => s.drops)
   const onboarded = useApp((s) => s.settings.onboarded)
 
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [errors, setErrors] = useState<{ username?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   const [failure, setFailure] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -59,8 +59,7 @@ export function Account() {
 
   const submit = async () => {
     const found: typeof errors = {}
-    const badName = validateUsername(username)
-    if (badName) found.username = badName
+    if (!EMAIL_RE.test(email.trim())) found.email = 'That email does not look right.'
     if (password.length < MIN_PASSWORD) {
       found.password = `At least ${MIN_PASSWORD} characters.`
     }
@@ -70,17 +69,20 @@ export function Account() {
     if (Object.keys(found).length) return
 
     setBusy(true)
-    const problem =
-      mode === 'signup' ? await signUp(username, password) : await signIn(username, password)
+    const problem = mode === 'signup' ? await signUp(email, password) : await signIn(email, password)
     setBusy(false)
 
     if (!problem) {
       navigate(mode === 'signup' ? '/permissions' : '/home', { replace: true })
       return
     }
-    // Supabase returns "check your email" as a message, not an error.
-    if (/confirm|check your email/i.test(problem)) setNotice(problem)
-    else setFailure(problem)
+    // Needing confirmation is not a failure — it is the next step.
+    if (problem === 'confirm') {
+      setNotice(
+        `Almost there. We sent a link to ${email.trim()} — open it, then come back and sign in.`,
+      )
+      setParams({}, { replace: true })
+    } else setFailure(problem)
   }
 
   const swap = () => {
@@ -102,7 +104,7 @@ export function Account() {
         </h2>
         <p className="body2" style={{ margin: '0 0 22px' }}>
           {mode === 'signup'
-            ? 'Pick a username. Your drops sync across your devices and stay yours alone.'
+            ? 'Your drops sync across your devices and stay yours alone.'
             : 'Sign in to reach your vault from any device.'}
         </p>
 
@@ -116,16 +118,17 @@ export function Account() {
           </div>
         )}
 
-        <Field label="Username" error={errors.username}>
-          <Icon name="profile" size={18} color="var(--muted)" />
+        <Field label="Email" error={errors.email}>
+          <Icon name="inbox" size={18} color="var(--muted)" />
           <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="lance"
-            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
             autoCapitalize="none"
             spellCheck={false}
-            maxLength={USERNAME_MAX}
             onKeyDown={(e) => e.key === 'Enter' && void submit()}
           />
         </Field>
@@ -188,24 +191,6 @@ export function Account() {
         <Button variant="ghost" onClick={() => navigate('/setup')}>
           Use LifeDrop without an account
         </Button>
-
-        {mode === 'signup' && (
-          <div
-            className="card"
-            style={{
-              display: 'flex',
-              gap: 11,
-              marginTop: 14,
-              borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
-            }}
-          >
-            <Icon name="alert" size={18} color="var(--warning)" />
-            <div className="body2" style={{ fontSize: 13 }}>
-              There is no email on the account, so a forgotten password cannot be reset. Write it
-              down somewhere safe.
-            </div>
-          </div>
-        )}
 
         <p className="caption" style={{ textAlign: 'center', marginTop: 18, lineHeight: 1.55 }}>
           Your drops are stored in your account and readable only by you. Review before saving.
