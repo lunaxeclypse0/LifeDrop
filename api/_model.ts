@@ -61,6 +61,30 @@ export async function callWithThinking(
 }
 
 /**
+ * Which models to try, in order.
+ *
+ * Free-tier daily allowances differ enormously between models — the capable
+ * flash model is metered in the tens of requests a day, while the lite one is
+ * in the hundreds, and the two quotas are counted separately. So the good model
+ * reads the first drops of the day and the generous one takes over when it runs
+ * out, which is better than either choice alone: no wall, and no needless drop
+ * in quality before the wall would have been.
+ *
+ * Both are overridable, because model ids get retired and the list is the value
+ * here most likely to go stale.
+ */
+export function modelChain(): string[] {
+  const primary = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
+  const fallback = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite'
+  return primary === fallback ? [primary] : [primary, fallback]
+}
+
+/** Worth trying the next model for: this one is out of quota, or is gone. */
+export function worthFallingBack(status: number): boolean {
+  return status === 429 || status === 404
+}
+
+/**
  * Google answers 429 with the quota that was hit and how long to wait. Passing
  * that through is the difference between "try again in 26 seconds" and a dead
  * end — a per-minute cap clears itself, a daily one does not.

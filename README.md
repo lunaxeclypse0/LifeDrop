@@ -182,7 +182,8 @@ No credit card.
 |---|---|---|
 | `GEMINI_API_KEY` | your key | Server-side only. Never reaches the browser. Also read from `API_KEY_LIFEDROP`, `GOOGLE_API_KEY` or `GEMINI_KEY`, whichever is set. |
 | `VITE_EXTRACT_ENDPOINT` | `/api/extract` | Switches the app off the mock. Build-time, so it ends up in the bundle — never put a secret behind a `VITE_` name. |
-| `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | Override if the model id changes. |
+| `GEMINI_MODEL` | *(optional)* `gemini-3.6-flash` | The model tried first. Override if the id is retired. |
+| `GEMINI_FALLBACK_MODEL` | *(optional)* `gemini-3.5-flash-lite` | Used when the first is out of quota or gone. Set it to the same value as `GEMINI_MODEL` to disable the fallback. |
 
 **4. Redeploy.** `VITE_*` values are baked in at build time, so a deploy that ran
 before you set it will still use the mock.
@@ -253,9 +254,23 @@ completely different things from the user:
   when it resets, and points at entering the details by hand. Nothing is lost
   either way: the capture is still there and saves normally.
 
-If the daily cap is the one being hit regularly, `GEMINI_MODEL` switches models
-without a code change — allowances differ per model, and the cheaper flash tiers
-are usually the generous ones.
+### Why there are two models
+
+Free-tier daily allowances differ by more than an order of magnitude between
+models, and each model's quota is counted separately. In September 2026 the
+capable flash model was reported at around **20 requests a day** while the lite
+one was around **500** — which is the difference between an app that stops after
+a handful of scans and one that does not.
+
+So `api/_model.ts` tries them in order: the better model reads the first drops of
+the day, and when its allowance runs out the generous one takes over. No wall,
+and no needless drop in quality before the wall would have been. A retired model
+id falls through the same way.
+
+Do not trust the numbers above — Google changes them without versioning, and
+they are no longer published as a table. The live figures for your own key are in
+[AI Studio](https://aistudio.google.com/rate-limit). Both models are env vars
+precisely because this will go stale.
 
 ### Using a different provider
 

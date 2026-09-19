@@ -216,6 +216,63 @@ process.env.GEMINI_API_KEY = 'test-key'
   process.env.GEMINI_API_KEY = 'test-key'
 }
 
+// --- falling back to a model with its own allowance -----------------------
+// The capable flash model is metered in the tens of requests a day. Running out
+// of it must not end the day's scanning.
+{
+  const asked: string[] = []
+  globalThis.fetch = (async (url: string) => {
+    const model = /models\/([^:]+):/.exec(url)?.[1] ?? '?'
+    asked.push(model)
+    if (model === 'gemini-3.6-flash') {
+      return new Response(
+        JSON.stringify({ error: { message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } }),
+        { status: 429 },
+      )
+    }
+    return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Meralco Bill', category: 'bill', amount: '3420', confidence: '0.9' })), { status: 200 })
+  }) as unknown as typeof fetch
+
+  const res = await handler(post(IMG))
+  check('a used-up daily quota moves to the next model', res.status === 200, res.status)
+  check('  and the drop is still read', ((await res.json()) as Record<string, unknown>).amount === 3420)
+  check('  after trying the better one first', asked[0] === 'gemini-3.6-flash', asked)
+  check('  and the fallback has its own allowance', asked.includes('gemini-3.5-flash-lite'), asked)
+}
+{
+  // Both gone is a real dead end, and must still read as a limit, not a crash.
+  stubGemini({ error: { message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } }, 429)
+  const res = await handler(post(IMG))
+  check('both models out -> still an honest 429', res.status === 429, res.status)
+  check('  marked as the daily one', ((await res.json()) as Record<string, unknown>).scope === 'day')
+}
+{
+  // A retired primary should not take the app down with it.
+  let calls = 0
+  globalThis.fetch = (async (url: string) => {
+    calls++
+    if (/gemini-3\.6-flash/.test(url)) {
+      return new Response(JSON.stringify({ error: { code: 404, message: 'not found' } }), { status: 404 })
+    }
+    return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
+  }) as unknown as typeof fetch
+  const res = await handler(post(IMG))
+  check('a retired primary falls through instead of failing', res.status === 200, res.status)
+  check('  having actually tried both', calls >= 2, calls)
+}
+{
+  // One model named for both means one attempt, not two identical ones.
+  process.env.GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash'
+  let calls = 0
+  globalThis.fetch = (async () => {
+    calls++
+    return new Response(JSON.stringify({ error: 'quota' }), { status: 429 })
+  }) as typeof fetch
+  await handler(post(IMG))
+  check('the same model twice is not tried twice', calls === 1, calls)
+  delete process.env.GEMINI_FALLBACK_MODEL
+}
+
 // --- thinking, which is what made a scan slow -----------------------------
 // The setting is spelled differently across model generations. Getting this
 // wrong is a hard 400, so the handler probes rather than assuming.

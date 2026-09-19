@@ -7,7 +7,8 @@
  *
  * Env:
  *   GEMINI_API_KEY   required — from https://aistudio.google.com/apikey
- *   GEMINI_MODEL     optional — defaults to gemini-3.6-flash
+ *   GEMINI_MODEL     optional — the model tried first
+ *   GEMINI_FALLBACK_MODEL  optional — used when the first is out of quota
  */
 
 /**
@@ -23,15 +24,13 @@ import {
   answerText,
   callWithThinking,
   limitResponse,
+  modelChain,
   thinkingConfig,
+  worthFallingBack,
   type Candidate,
   type ThinkMode,
 } from './_model'
 
-// Google retires model ids and returns 404 for them, so this is the one value
-// here most likely to go stale. `GEMINI_MODEL` overrides it without a code
-// change; the 404 body names the replacement when that day comes.
-const DEFAULT_MODEL = 'gemini-3.6-flash'
 const CATEGORIES = [
   'bill',
   'receipt',
@@ -191,9 +190,7 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const data = toBase64(new Uint8Array(await file.arrayBuffer()))
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL
-
-  const call = (mode: ThinkMode) =>
+  const call = (model: string, mode: ThinkMode) =>
     fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -214,11 +211,27 @@ export default async function handler(request: Request): Promise<Response> {
       }),
     })
 
+  // Out of quota on the good model is not the end of the day — the lite one
+  // keeps its own allowance. See modelChain().
+  const tried = modelChain()
   let res: Response
   try {
-    res = await callWithThinking(call, knownThinkMode, (m) => {
-      knownThinkMode = m
-    })
+    res = await callWithThinking(
+      (mode) => call(tried[0], mode),
+      knownThinkMode,
+      (m) => {
+        knownThinkMode = m
+      },
+    )
+    for (let i = 1; i < tried.length && worthFallingBack(res.status); i++) {
+      res = await callWithThinking(
+        (mode) => call(tried[i], mode),
+        knownThinkMode,
+        (m) => {
+          knownThinkMode = m
+        },
+      )
+    }
   } catch {
     return json({ error: 'upstream_unreachable', message: 'Could not reach the model.' }, 502)
   }
@@ -230,7 +243,7 @@ export default async function handler(request: Request): Promise<Response> {
       return json(
         {
           error: 'model_unavailable',
-          message: `The model "${model}" is not available to this key. Set GEMINI_MODEL to a current one.`,
+          message: `No model answered. Tried ${tried.join(', ')}. Set GEMINI_MODEL to a current one.`,
           detail: detail.slice(0, 400),
         },
         502,

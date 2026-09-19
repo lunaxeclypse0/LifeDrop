@@ -20,12 +20,12 @@ import {
   answerText,
   callWithThinking,
   limitResponse,
+  modelChain,
   thinkingConfig,
+  worthFallingBack,
   type Candidate,
   type ThinkMode,
 } from './_model'
-
-const DEFAULT_MODEL = 'gemini-3.6-flash'
 
 // See api/_model.ts. A spoken question should come back before the user
 // wonders whether the app heard them.
@@ -156,9 +156,9 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (!transcript) return json({ error: 'bad_request', message: 'Nothing was said.' }, 400)
 
-  const call = (mode: ThinkMode) =>
+  const call = (model: string, mode: ThinkMode) =>
     fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || DEFAULT_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -184,11 +184,18 @@ export default async function handler(request: Request): Promise<Response> {
       },
     )
 
+  // Out of quota on the good model is not the end of the day — the lite one
+  // keeps its own allowance. See modelChain().
+  const tried = modelChain()
+  const remember = (m: ThinkMode) => {
+    knownThinkMode = m
+  }
   let res: Response
   try {
-    res = await callWithThinking(call, knownThinkMode, (m) => {
-      knownThinkMode = m
-    })
+    res = await callWithThinking((mode) => call(tried[0], mode), knownThinkMode, remember)
+    for (let i = 1; i < tried.length && worthFallingBack(res.status); i++) {
+      res = await callWithThinking((mode) => call(tried[i], mode), knownThinkMode, remember)
+    }
   } catch {
     return json({ error: 'upstream_unreachable' }, 502)
   }
