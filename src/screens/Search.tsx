@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DropCard } from '../components/DropCard'
 import { EmptyState } from '../components/States'
 import { Icon } from '../components/Icon'
 import { Chip, SectionHead } from '../components/UI'
 import { searchDrops, useApp } from '../lib/store'
 import { CATEGORIES, CATEGORY_ORDER } from '../lib/types'
+import { voiceInputSupported } from '../lib/speech'
 
 const RECENT_KEY = 'lifedrop.recentSearches'
 
@@ -21,12 +22,15 @@ export function Search() {
   const navigate = useNavigate()
   const drops = useApp((s) => s.drops)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [query, setQuery] = useState('')
+  const [params] = useSearchParams()
+  // A spoken search lands here with its words already in the URL.
+  const [query, setQuery] = useState(() => params.get('q') ?? '')
   const [recent, setRecent] = useState<string[]>(readRecent)
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    // Don't pop the keyboard over results that arrived from the mic.
+    if (!params.get('q')) inputRef.current?.focus()
+  }, [params])
 
   const results = useMemo(() => searchDrops(drops, query), [drops, query])
 
@@ -61,10 +65,16 @@ export function Search() {
             type="search"
             aria-label="Search"
           />
-          {query && (
+          {query ? (
             <button onClick={() => setQuery('')} aria-label="Clear search">
               <Icon name="close" size={17} color="var(--muted)" width={2} />
             </button>
+          ) : (
+            voiceInputSupported() && (
+              <button onClick={() => navigate('/voice')} aria-label="Search by voice">
+                <Icon name="mic" size={18} color="var(--primary-ink)" />
+              </button>
+            )
           )}
         </div>
       </header>

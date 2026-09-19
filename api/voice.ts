@@ -1,0 +1,173 @@
+/**
+ * POST /api/voice — turns a spoken sentence into an intent.
+ *
+ * Only the transcript is sent here. The user's drops, amounts and dates never
+ * leave their device: for a question this returns *what was asked*, and the
+ * app computes the answer locally from its own store. That keeps the promise
+ * the app makes on its own privacy screen.
+ *
+ * Env: same key as /api/extract.
+ */
+
+export const config = { runtime: 'edge' }
+
+const DEFAULT_MODEL = 'gemini-3.6-flash'
+
+const CATEGORIES = ['bill', 'receipt', 'booking', 'subscription', 'warranty', 'document', 'event'] as const
+const REPEATS = ['none', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'] as const
+const KINDS = ['ask', 'drop', 'search', 'unknown'] as const
+const QUESTIONS = [
+  'spend_total', // how much have I spent
+  'owed_total', // how much do I still owe
+  'due_soon', // what is coming up
+  'next_item', // when is my <thing>
+  'subscriptions', // what am I paying monthly
+  'count', // how many things do I have
+  'none',
+] as const
+const PERIODS = ['this_month', 'last_month', 'this_week', 'this_year', 'all'] as const
+
+const SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    kind: { type: 'STRING', enum: [...KINDS] },
+    question: { type: 'STRING', enum: [...QUESTIONS] },
+    period: { type: 'STRING', enum: [...PERIODS] },
+    category: { type: 'STRING', description: 'One of the categories, or empty for all.' },
+    subject: { type: 'STRING', description: 'For next_item: the thing asked about, e.g. "Meralco".' },
+    query: { type: 'STRING', description: 'For search: the words to look for.' },
+    title: { type: 'STRING' },
+    merchant: { type: 'STRING' },
+    amount: { type: 'STRING', description: 'Digits only. Empty if not said.' },
+    date: { type: 'STRING', description: 'yyyy-mm-dd. Empty if not said.' },
+    time: { type: 'STRING', description: 'HH:MM 24-hour. Empty if not said.' },
+    repeat: { type: 'STRING', enum: [...REPEATS] },
+    reference: { type: 'STRING' },
+    say: { type: 'STRING', description: 'For unknown only: one short sentence back to the user.' },
+  },
+  required: ['kind'],
+} as const
+
+function prompt(today: string): string {
+  return `You route one spoken sentence from a Philippine personal-organizer app. Today is ${today}.
+
+The speaker may mix English and Tagalog. Amounts are pesos and may be spoken in words ("tatlong libo apat na raan bente" = 3420) or in English ("three thousand four twenty").
+
+Choose exactly one "kind":
+
+"ask" — they want to know something about what they already saved.
+  Set "question" to one of:
+    spend_total    how much have I spent / total cost / gastos
+    owed_total     how much do I still owe / unpaid / babayaran
+    due_soon       what is due / coming up / this week / ano ang bayarin
+    next_item      when is my <thing> — also set "subject" to the thing named
+    subscriptions  what am I paying monthly / subscriptions
+    count          how many receipts / bills / items do I have
+  Set "period" when a timeframe is named, else "all". Set "category" when one is named.
+
+"drop" — they are recording a new thing. "Meralco bill 3420 due September 30",
+  "Grab receipt 318 pesos", "dentist appointment Friday 3pm".
+  Fill title, merchant, amount, date, time, repeat, reference from what was said.
+  Leave anything not said empty. Never invent an amount or a date.
+  Resolve spoken dates against today: "Friday" = the coming Friday, "next month" etc.
+
+"search" — they want to find something they saved. "Hanapin ang Nike receipt",
+  "find my passport", "show me September receipts". Put the useful words in "query"
+  and leave out filler like "find", "show me", "hanapin".
+
+"unknown" — it is not any of these, or it is too garbled. Put one short, friendly
+  sentence in "say" telling them what they can ask for.
+
+Prefer "ask" over "search" when they want a number or a summary rather than a list.
+Prefer "drop" only when they clearly describe a NEW thing with at least a name.`
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+function oneOf<T extends readonly string[]>(v: unknown, allowed: T, fallback: T[number]): T[number] {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T[number]) : fallback
+}
+
+export default async function handler(request: Request): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405)
+
+  const key =
+    process.env.GEMINI_API_KEY ||
+    process.env.API_KEY_LIFEDROP ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GEMINI_KEY
+  if (!key) return json({ error: 'not_configured' }, 503)
+
+  let transcript = ''
+  let today = new Date().toISOString().slice(0, 10)
+  try {
+    const body = (await request.json()) as { transcript?: string; today?: string }
+    transcript = str(body.transcript).slice(0, 500)
+    if (body.today && /^\d{4}-\d{2}-\d{2}$/.test(body.today)) today = body.today
+  } catch {
+    return json({ error: 'bad_request', message: 'Expected JSON.' }, 400)
+  }
+
+  if (!transcript) return json({ error: 'bad_request', message: 'Nothing was said.' }, 400)
+
+  let res: Response
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || DEFAULT_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `${prompt(today)}\n\nThey said: "${transcript}"` }] }],
+          generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
+        }),
+      },
+    )
+  } catch {
+    return json({ error: 'upstream_unreachable' }, 502)
+  }
+
+  if (res.status === 429) return json({ error: 'rate_limited' }, 429)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 300) }, 502)
+  }
+
+  const payload = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) return json({ error: 'empty_response' }, 502)
+
+  let out: Record<string, unknown>
+  try {
+    out = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return json({ error: 'bad_model_json' }, 502)
+  }
+
+  const kind = oneOf(out.kind, KINDS, 'unknown')
+  const amountRaw = str(out.amount).replace(/[^\d.]/g, '')
+
+  return json({
+    kind,
+    transcript,
+    question: oneOf(out.question, QUESTIONS, 'none'),
+    period: oneOf(out.period, PERIODS, 'all'),
+    category: (CATEGORIES as readonly string[]).includes(str(out.category)) ? str(out.category) : '',
+    subject: str(out.subject),
+    query: str(out.query),
+    title: str(out.title),
+    merchant: str(out.merchant),
+    amount: amountRaw && Number.isFinite(Number(amountRaw)) ? Number(amountRaw) : null,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(str(out.date)) ? str(out.date) : '',
+    time: /^([01]\d|2[0-3]):[0-5]\d$/.test(str(out.time)) ? str(out.time) : '',
+    repeat: oneOf(out.repeat, REPEATS, 'none'),
+    reference: str(out.reference),
+    say: str(out.say),
+  })
+}

@@ -91,6 +91,9 @@ export function Home({ onDrop }: { onDrop: () => void }) {
           )}
         </div>
         <ThemeToggle />
+        <button className="iconbtn" onClick={() => navigate('/voice')} aria-label="Ask LifeDrop">
+          <Icon name="mic" size={20} />
+        </button>
         <button className="iconbtn" onClick={() => navigate('/search')} aria-label="Search">
           <Icon name="search" size={20} />
         </button>

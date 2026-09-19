@@ -4,7 +4,7 @@ import { DEFAULT_STATUS } from './types'
 import * as db from './db'
 import { buildSeedDrops } from './seed'
 import { nextOccurrence, todayISO } from './format'
-import { rearm, runReminderSweep } from './reminders'
+import { defaultLeadDays, rearm, runReminderSweep } from './reminders'
 import { clearFailures, createLock, NO_LOCK } from './lock'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -166,7 +166,9 @@ export const useApp = create<State>((set, get) => ({
       time: draft.time,
       status: DEFAULT_STATUS[draft.category],
       repeat: draft.repeat,
-      remindDaysBefore: draft.remindDaysBefore,
+      // Nobody should have to think about lead times — pick a sensible one
+      // for the kind of thing this is, and let them change it after.
+      remindDaysBefore: draft.remindDaysBefore ?? defaultLeadDays(draft.category),
       reference: draft.reference,
       notes: draft.notes,
       fileName: pending?.source.file.name || 'manual-entry',

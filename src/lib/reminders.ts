@@ -1,5 +1,5 @@
-import type { AppSettings, Drop } from './types'
-import { daysUntil, longDate, peso, shortDate } from './format'
+import type { AppSettings, Category, Drop } from './types'
+import { daysUntil, longDate, peso, shortDate, todayISO } from './format'
 
 const FIRED_KEY = 'lifedrop.remindersFired'
 
@@ -26,6 +26,26 @@ function writeFired(map: FiredMap) {
   } catch {
     /* private mode — reminders just repeat next session */
   }
+}
+
+/**
+ * How far ahead each kind of thing wants warning, when nobody has said.
+ * A bill needs time to actually pay it; a passport needs months to renew; a
+ * receipt needs nothing at all.
+ */
+const LEAD_DAYS: Record<Category, number | null> = {
+  bill: 3,
+  subscription: 1,
+  event: 1,
+  booking: 1,
+  warranty: 30,
+  document: 90,
+  receipt: null,
+}
+
+/** Applied when a drop is saved without an explicit reminder. */
+export function defaultLeadDays(category: Category): number | null {
+  return LEAD_DAYS[category]
 }
 
 export function notificationsSupported(): boolean {
@@ -123,29 +143,46 @@ export async function runReminderSweep(drops: Drop[], settings: AppSettings): Pr
   if (settings.prefs.quiet && inQuietHours()) return 0
 
   const fired = readFired()
-  let shown = 0
+  const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
 
-  for (const item of due) {
-    try {
-      const reg = await navigator.serviceWorker?.getRegistration()
-      const options: NotificationOptions = {
-        body: item.body,
-        tag: `lifedrop-${item.drop.id}-${item.drop.date}`,
-        icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        data: { dropId: item.drop.id },
+  const show = async (title: string, options: NotificationOptions) => {
+    if (reg) await reg.showNotification(title, options)
+    else new Notification(title, options)
+  }
+
+  const icons = { icon: './icons/icon-192.png', badge: './icons/icon-192.png' }
+
+  try {
+    // Several things landing at once is one event in the user's day, not five
+    // separate interruptions.
+    if (due.length > 2) {
+      const money = due.reduce((t, d) => t + (d.drop.amount ?? 0), 0)
+      await show(`${due.length} things need you`, {
+        ...icons,
+        body: settings.prefs.hideOnLock
+          ? 'Open LifeDrop to see what is coming up.'
+          : due.map((d) => d.drop.title).slice(0, 3).join(', ') +
+            (due.length > 3 ? ` and ${due.length - 3} more` : '') +
+            (money ? ` · ${peso(money)}` : ''),
+        tag: `lifedrop-digest-${todayISO()}`,
+      })
+    } else {
+      for (const item of due) {
+        await show(item.title, {
+          ...icons,
+          body: item.body,
+          tag: `lifedrop-${item.drop.id}-${item.drop.date}`,
+          data: { dropId: item.drop.id },
+        })
       }
-      if (reg) await reg.showNotification(item.title, options)
-      else new Notification(item.title, options)
-      fired[item.drop.id] = item.drop.date
-      shown++
-    } catch {
-      /* a failed notification should never break the sweep */
     }
+    for (const item of due) fired[item.drop.id] = item.drop.date
+  } catch {
+    /* a failed notification should never break the sweep */
   }
 
   writeFired(fired)
-  return shown
+  return due.length
 }
 
 /** Clears the fired mark so an edited drop can remind again. */

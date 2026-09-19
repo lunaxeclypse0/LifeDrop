@@ -58,6 +58,7 @@ Nothing here is a mock-up. Every screen reads and writes the same store.
 | **Data** | JSON export of everything; permanent delete. |
 | **Theme** | Light / dark / system, with a one-tap switch in the Home top bar. Honours `prefers-color-scheme` and `prefers-reduced-motion`. |
 | **First run** | Empty. No invented drops, no fake numbers — a new install shows the empty states and one thing to do. |
+| **Voice** | Ask questions, speak a drop, or search by voice. Browser speech in and out — no key, no quota. |
 
 ### About the first run
 
@@ -69,6 +70,24 @@ when asked for — from the Home empty state ("Or look around with sample data")
 **Settings > Help & Support > Load sample data**. Every demo row carries
 `sample: true`, so "Remove sample data" deletes exactly those and never touches a
 real drop.
+
+### About voice
+
+The mic uses the browser's own `SpeechRecognition`, so it costs nothing and needs
+no key. It works in Chrome (desktop and Android) and in **Safari** on iPhone —
+Chrome on iOS has no access to it, and Firefox keeps it behind a flag.
+
+Three things can be said:
+
+| Said | Routed to |
+|---|---|
+| "How much have I spent this month?" | an answer, computed locally, read aloud |
+| "Meralco bill 3420 due September 30" | the Review screen, pre-filled |
+| "Find my Nike receipt" | Search |
+
+**Only the transcript reaches the model.** `/api/voice` returns *what was asked* —
+never the answer — and `src/lib/assistant.ts` computes every figure on the device
+from the local store. Asking what you owe does not send your finances anywhere.
 
 ### About accounts and the lock
 
@@ -179,10 +198,12 @@ src/
     extract.ts     Extractor interface, MockExtractor, HttpExtractor
     reminders.ts   due-reminder evaluation and notification sweep
     format.ts      peso, dates, urgency, repeat arithmetic
+    assistant.ts   answers spoken questions from the local store
     icons.ts       the 24px icon grid
     image.ts       downscales a capture before upload
     install.ts     PWA install prompt, per platform
     lock.ts        PIN hashing, attempt limiting, WebAuthn enrolment
+    speech.ts      browser speech in and out
     seed.ts        sample vault, built on dates relative to first open
   components/      Icon, Brand, UI kit, DropCard, DropForm, PinPad, Sheet, Toast, States
   screens/         one file per screen
@@ -198,7 +219,9 @@ public/
 ```bash
 npm run typecheck
 npm run build
+npm test                   # both suites below
 npm run test:api           # api/extract.ts against a stubbed Gemini, no key needed
+npm run test:voice         # intent routing + the locally computed answers
 
 npm run preview &          # the two browser checks need it running
 npm run smoke              # drop -> process -> review -> save -> persists

@@ -18,6 +18,7 @@ import { Inbox } from './screens/Inbox'
 import { CalendarScreen } from './screens/CalendarScreen'
 import { Vault, VaultCategory } from './screens/Vault'
 import { Search } from './screens/Search'
+import { Voice } from './screens/Voice'
 import { CameraCapture, UploadPicker } from './screens/Capture'
 import { Processing } from './screens/Processing'
 import { Review } from './screens/Review'
@@ -85,6 +86,7 @@ function useScrollReset() {
 const DROP_OPTIONS: { icon: IconName; title: string; body: string; kind: string }[] = [
   { icon: 'camera', title: 'Take a photo', body: 'Scan a paper bill, letter or warranty card', kind: 'camera' },
   { icon: 'image', title: 'Photo, screenshot or PDF', body: 'Pick anything already on this device', kind: 'upload' },
+  { icon: 'mic', title: 'Say it', body: 'Speak the details, or ask me a question', kind: 'voice' },
   { icon: 'paste', title: 'Paste from clipboard', body: 'Whatever you just copied', kind: 'paste' },
   { icon: 'edit', title: 'Enter it myself', body: 'No file — just the details', kind: 'manual' },
 ]
@@ -122,6 +124,7 @@ function DropSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     onClose()
     if (kind === 'camera') navigate('/capture/camera')
     else if (kind === 'upload') navigate('/capture/upload')
+    else if (kind === 'voice') navigate('/voice')
     else navigate('/review?manual=1')
   }
 
@@ -172,6 +175,7 @@ function Shell() {
         <Route path="/vault/:category" element={<VaultCategory />} />
 
         <Route path="/search" element={<Search />} />
+        <Route path="/voice" element={<Voice />} />
         <Route path="/spending" element={<Spending />} />
         <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/notifications" element={<Notifications />} />
