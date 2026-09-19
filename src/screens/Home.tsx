@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { DropCard } from '../components/DropCard'
 import { EmptyState, OfflineBanner } from '../components/States'
 import { InstallBanner } from '../components/InstallApp'
+import { SignInBanner } from '../components/SignInBanner'
 import { Icon } from '../components/Icon'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { Button, SectionHead } from '../components/UI'
@@ -180,6 +181,7 @@ export function Home({ onDrop }: { onDrop: () => void }) {
 
       <div className="scrollhost nsb">
         {!online && <OfflineBanner />}
+        <SignInBanner />
         <InstallBanner />
 
         {empty ? (

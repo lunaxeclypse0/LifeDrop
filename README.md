@@ -111,8 +111,12 @@ The cost is stated on the sign-up screen: with no real email there is no
 password reset. The domain in `src/lib/username.ts` must never change once
 anyone has signed up — it is how their account is found.
 
-Turn **Confirm email** off in Supabase (Authentication → Sign In / Providers →
-Email), or sign-up will wait forever for a confirmation that cannot arrive.
+**Turn "Confirm email" OFF** in Supabase (Authentication → Sign In / Providers →
+Email). This is not optional. With it on, every sign-up tries to post a
+confirmation to an address that cannot receive one; the free tier's email rate
+limit is reached within a few attempts and sign-up fails with
+`over_email_send_rate_limit`. The app now detects both cases and says which
+setting to change, but the setting still has to be changed.
 
 **Setting it up**
 

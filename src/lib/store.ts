@@ -320,12 +320,20 @@ export const useApp = create<State>((set, get) => ({
       options: { data: { username: name } },
     })
     if (error) {
-      // Supabase reports a taken address; say it in the user's own terms.
-      return /already registered|already exists/i.test(error.message)
-        ? 'That username is taken. Try another.'
-        : error.message
+      // Supabase speaks in emails; the user only ever typed a username.
+      if (/already registered|already exists/i.test(error.message)) {
+        return 'That username is taken. Try another.'
+      }
+      if (/email rate limit|over_email_send/i.test(error.message)) {
+        return 'Sign-ups are blocked because this project still sends confirmation emails. Turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email).'
+      }
+      return error.message
     }
-    if (!data.user) return 'Account created. Sign in to continue.'
+    // No session means Supabase is waiting on an email confirmation — which can
+    // never arrive at a .invalid address. Say so rather than pretend we are in.
+    if (!data.session) {
+      return 'This project is still set to confirm sign-ups by email, and username accounts have no inbox. Turn off "Confirm email" in Supabase, then try again.'
+    }
 
     // Anything dropped before signing up belongs to this account now.
     await adoptLocalDrops()

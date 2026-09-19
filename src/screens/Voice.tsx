@@ -180,7 +180,7 @@ export function Voice() {
                 setMuted(!muted)
               }}
             >
-              <Icon name={muted ? 'bellOff' : 'bell'} size={20} />
+              <Icon name={muted ? 'speakerOff' : 'speaker'} size={20} />
             </button>
           ) : undefined
         }
@@ -271,6 +271,11 @@ export function Voice() {
               {reply.goTo && (
                 <Button variant="secondary" icon="chev" onClick={() => navigate(reply.goTo!)}>
                   Open it
+                </Button>
+              )}
+              {!muted && (
+                <Button variant="secondary" icon="speaker" onClick={() => speak(reply.speech)}>
+                  Say it again
                 </Button>
               )}
               <Button variant="ghost" icon="mic" onClick={start}>
