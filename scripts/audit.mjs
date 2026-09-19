@@ -110,6 +110,20 @@ const PROBE = () => {
           issues.push({ kind: 'tight-gap', detail: `${label(a.el)} / ${label(b.el)} only ${gap.toFixed(1)}px apart` })
         }
       }
+
+      // The same check the other way round. It is limited to full-width
+      // buttons because stacked list rows are meant to sit flush against
+      // their dividers, while two stacked buttons touching read as one odd
+      // control — and put two different outcomes a thumb's width apart.
+      if (overlapX && a.el.classList.contains('btn') && b.el.classList.contains('btn')) {
+        const gap = b.r.top > a.r.bottom ? b.r.top - a.r.bottom : a.r.top - b.r.bottom
+        if (gap >= 0 && gap < 8) {
+          issues.push({
+            kind: 'tight-gap',
+            detail: `${label(a.el)} / ${label(b.el)} stacked only ${gap.toFixed(1)}px apart`,
+          })
+        }
+      }
     }
   }
 

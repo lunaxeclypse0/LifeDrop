@@ -3,6 +3,9 @@
 .DS_Store
 .shots
 .smoke
+.audit
+.interactions
+.ratelimit
 dev-dist
 dist
 node_modules

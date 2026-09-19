@@ -216,9 +216,15 @@ These only work on a real HTTPS origin, which is why a LAN address is not enough
 local date conventions, and which date actually matters per category (due date for a
 bill, renewal for a subscription, expiry for a warranty).
 
-The image is downscaled to 1600px on the device before upload (`src/lib/image.ts`),
-which keeps requests small, fast and well inside the free tier. Your full-size
-original is still kept locally.
+The image is downscaled to 1400px at quality 0.75 on the device before upload
+(`src/lib/image.ts`), which keeps requests small, fast and well inside the free
+tier. Your full-size original is still kept locally.
+
+Reading a bill is a lookup, not a puzzle, so reasoning is turned down
+(`api/_model.ts`). That setting has been spelled `thinkingLevel` and
+`thinkingBudget` across model generations and sending the wrong one is a hard
+400, so the first call probes the spellings and remembers what the model
+accepted. Both endpoints share it.
 
 Status codes the client understands:
 
@@ -226,13 +232,30 @@ Status codes the client understands:
 |---|---|---|
 | 200 | a reading | Review screen, every field editable |
 | 422 | genuinely unreadable | "We could not read this one" + retry / enter by hand |
-| 429 | free tier exhausted | "The free limit was reached" + retry / enter by hand |
+| 429 | free tier exhausted | a per-minute cap is waited out and retried by itself; a daily one stops and says so |
 | 503 | `GEMINI_API_KEY` not set | "AI reading is not set up yet" + enter by hand |
 | 502 | upstream or network failure | "That upload did not finish" + retry |
 
 Free-tier limits move, so check
 [ai.google.dev/gemini-api/docs/pricing](https://ai.google.dev/gemini-api/docs/pricing)
 rather than trusting a number written here.
+
+### When the free tier refuses
+
+Google answers 429 with the quota that was hit and, often, how long to wait.
+`api/_model.ts` reads both and passes them on, because the two cases need
+completely different things from the user:
+
+- **Per-minute.** The app says "Waiting for the AI to free up…", counts the wait
+  down, and goes again on its own — twice before it gives up. Most of the time
+  the user never learns a limit existed.
+- **Per-day.** No countdown will help, so it says the day's allowance is gone and
+  when it resets, and points at entering the details by hand. Nothing is lost
+  either way: the capture is still there and saves normally.
+
+If the daily cap is the one being hit regularly, `GEMINI_MODEL` switches models
+without a code change — allowances differ per model, and the cheaper flash tiers
+are usually the generous ones.
 
 ### Using a different provider
 
@@ -293,6 +316,10 @@ npm run preview &          # the two browser checks need it running
 npm run smoke              # drop -> process -> review -> save -> persists
 node scripts/interactions.mjs   # mark-paid rollover, archive/undo, search, validation
 node scripts/lock.mjs           # PIN set -> reload gate -> wrong PIN -> lockout
+
+# The rate-limit path, against a stubbed 429. Needs a build that actually calls
+# the endpoint: VITE_EXTRACT_ENDPOINT=/api/extract npm run build
+node scripts/ratelimit.mjs      # waits a per-minute cap out, stops on a daily one
 npm run audit              # every screen x both themes: overflow, tap targets,
                            # overlaps, clipped text, console errors
 npm run shots              # screenshots of every main screen, light and dark

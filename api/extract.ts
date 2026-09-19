@@ -19,6 +19,15 @@
  */
 export const config = { runtime: 'edge' }
 
+import {
+  answerText,
+  callWithThinking,
+  limitResponse,
+  thinkingConfig,
+  type Candidate,
+  type ThinkMode,
+} from './_model'
+
 // Google retires model ids and returns 404 for them, so this is the one value
 // here most likely to go stale. `GEMINI_MODEL` overrides it without a code
 // change; the 404 body names the replacement when that day comes.
@@ -133,6 +142,8 @@ function toBase64(bytes: Uint8Array): string {
 /** Edge caps the request body, and the client downscales well below this. */
 const MAX_BYTES = 4 * 1024 * 1024
 
+let knownThinkMode: ThinkMode | null = null
+
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'Use POST.' }, 405)
@@ -182,34 +193,39 @@ export default async function handler(request: Request): Promise<Response> {
   const data = toBase64(new Uint8Array(await file.arrayBuffer()))
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL
 
+  const call = (mode: ThinkMode) =>
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [
+          { role: 'user', parts: [{ text: prompt(today) }, { inline_data: { mime_type: mime, data } }] },
+        ],
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA,
+          // The answer is a dozen short fields. The ceiling is generous because
+          // reasoning tokens come out of the same budget, and a cut-off reply
+          // is worse than a slow one.
+          maxOutputTokens: 2048,
+          ...thinkingConfig(mode),
+        },
+      }),
+    })
+
   let res: Response
   try {
-    res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: prompt(today) }, { inline_data: { mime_type: mime, data } }] },
-          ],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
-          },
-        }),
-      },
-    )
+    res = await callWithThinking(call, knownThinkMode, (m) => {
+      knownThinkMode = m
+    })
   } catch {
     return json({ error: 'upstream_unreachable', message: 'Could not reach the model.' }, 502)
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    if (res.status === 429) {
-      return json({ error: 'rate_limited', message: 'The free tier limit was hit. Try again shortly.' }, 429)
-    }
+    const detail = (await res.text().catch(() => '')).split(key).join('[redacted]')
+    if (res.status === 429) return limitResponse(detail)
     if (res.status === 404) {
       return json(
         {
@@ -223,12 +239,21 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 400) }, 502)
   }
 
-  const payload = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[]
-  }
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) {
-    return json({ error: 'empty_response', message: 'The model returned nothing.' }, 502)
+  const payload = (await res.json()) as { candidates?: Candidate[] }
+  const candidate = payload.candidates?.[0]
+  const text = answerText(candidate)
+  if (!text.trim()) {
+    return json(
+      {
+        error: 'empty_response',
+        message:
+          candidate?.finishReason === 'MAX_TOKENS'
+            ? 'The model ran out of room before it answered.'
+            : 'The model returned nothing.',
+        finishReason: candidate?.finishReason ?? '',
+      },
+      502,
+    )
   }
 
   let out: Record<string, unknown>

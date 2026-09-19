@@ -16,7 +16,20 @@
 
 export const config = { runtime: 'edge' }
 
+import {
+  answerText,
+  callWithThinking,
+  limitResponse,
+  thinkingConfig,
+  type Candidate,
+  type ThinkMode,
+} from './_model'
+
 const DEFAULT_MODEL = 'gemini-3.6-flash'
+
+// See api/_model.ts. A spoken question should come back before the user
+// wonders whether the app heard them.
+let knownThinkMode: ThinkMode | null = null
 
 const CATEGORIES = ['bill', 'receipt', 'booking', 'subscription', 'warranty', 'document', 'event'] as const
 const REPEATS = ['none', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'] as const
@@ -143,9 +156,8 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (!transcript) return json({ error: 'bad_request', message: 'Nothing was said.' }, 400)
 
-  let res: Response
-  try {
-    res = await fetch(
+  const call = (mode: ThinkMode) =>
+    fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || DEFAULT_MODEL}:generateContent`,
       {
         method: 'POST',
@@ -161,23 +173,35 @@ export default async function handler(request: Request): Promise<Response> {
               ],
             },
           ],
-          generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
+          generationConfig: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+            responseSchema: SCHEMA,
+            maxOutputTokens: 1024,
+            ...thinkingConfig(mode),
+          },
         }),
       },
     )
+
+  let res: Response
+  try {
+    res = await callWithThinking(call, knownThinkMode, (m) => {
+      knownThinkMode = m
+    })
   } catch {
     return json({ error: 'upstream_unreachable' }, 502)
   }
 
-  if (res.status === 429) return json({ error: 'rate_limited' }, 429)
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
+    const detail = (await res.text().catch(() => '')).split(key).join('[redacted]')
+    if (res.status === 429) return limitResponse(detail)
     return json({ error: 'upstream_error', status: res.status, detail: detail.slice(0, 300) }, 502)
   }
 
-  const payload = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) return json({ error: 'empty_response' }, 502)
+  const payload = (await res.json()) as { candidates?: Candidate[] }
+  const text = answerText(payload.candidates?.[0])
+  if (!text.trim()) return json({ error: 'empty_response' }, 502)
 
   let out: Record<string, unknown>
   try {

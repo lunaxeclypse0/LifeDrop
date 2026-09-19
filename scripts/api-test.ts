@@ -3,9 +3,9 @@
  * stubbed, so the parts I can actually get wrong — request handling, status
  * codes, and coercing the model's strings into an Extraction — are covered.
  *
- *   node --experimental-strip-types scripts/api-test.ts
+ *   npm run test:api
  */
-import handler from '../api/extract.ts'
+import handler from '../api/extract'
 
 let passed = 0
 let failed = 0
@@ -174,6 +174,94 @@ process.env.GEMINI_API_KEY = 'test-key'
   stubGemini({ error: 'quota' }, 429)
   const res = await handler(post(IMG))
   check('429 is passed through as rate limiting', res.status === 429, res.status)
+}
+// The client waits a per-minute limit out by itself, so what the server says
+// about scope and timing decides whether the user ever sees an error at all.
+{
+  stubGemini(
+    {
+      error: {
+        code: 429,
+        message: 'Quota exceeded for quota metric GenerateRequestsPerMinutePerProject',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '26s' }],
+      },
+    },
+    429,
+  )
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('a per-minute limit is marked recoverable', b.scope === 'minute', b.scope)
+  check("  and carries Google's own retry delay", b.retryAfter === 26, b.retryAfter)
+  check('  and sets Retry-After', res.headers.get('retry-after') === '26', res.headers.get('retry-after'))
+}
+{
+  stubGemini(
+    { error: { code: 429, message: 'Quota exceeded: GenerateRequestsPerDayPerProjectPerModel' } },
+    429,
+  )
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('a daily limit is marked as such', b.scope === 'day', b.scope)
+  check('  and gets no countdown to wait out', b.retryAfter === 0, b.retryAfter)
+  check('  and says when it comes back', String(b.message).includes('resets'), b.message)
+}
+// A 429 body is the one upstream error most likely to be shown to the user,
+// so it must not carry the key along with it.
+{
+  process.env.GEMINI_API_KEY = 'super-secret-key'
+  stubGemini({ error: { message: 'API key super-secret-key exceeded quota' } }, 429)
+  const res = await handler(post(IMG))
+  const raw = await res.text()
+  check('never echoes the key back to the browser', !raw.includes('super-secret-key'), raw.slice(0, 120))
+  process.env.GEMINI_API_KEY = 'test-key'
+}
+
+// --- thinking, which is what made a scan slow -----------------------------
+// The setting is spelled differently across model generations. Getting this
+// wrong is a hard 400, so the handler probes rather than assuming.
+{
+  const sent: string[] = []
+  globalThis.fetch = (async (_url: string, init: { body: string }) => {
+    const body = JSON.parse(init.body) as { generationConfig: Record<string, unknown> }
+    const cfg = (body.generationConfig.thinkingConfig ?? {}) as Record<string, unknown>
+    sent.push('thinkingLevel' in cfg ? 'level' : 'thinkingBudget' in cfg ? 'budget' : 'none')
+    if ('thinkingLevel' in cfg) {
+      return new Response(JSON.stringify({ error: { message: 'Unknown name "thinkingLevel"' } }), {
+        status: 400,
+      })
+    }
+    return new Response(JSON.stringify(modelSays({ readable: 'yes', title: 'Bill', category: 'bill', confidence: '0.9' })), { status: 200 })
+  }) as unknown as typeof fetch
+
+  const res = await handler(post(IMG))
+  check('a rejected thinking setting falls through to the next', res.status === 200, res.status)
+  check('  without a wasted scan for the user', sent.includes('budget'), sent)
+}
+{
+  // A reasoning model returns its thoughts as a separate part; taking part
+  // zero would hand JSON.parse a paragraph of English.
+  stubGemini({
+    candidates: [
+      {
+        content: {
+          parts: [
+            { text: 'Let me look at the total line...', thought: true },
+            { text: JSON.stringify({ readable: 'yes', title: 'Meralco Bill', category: 'bill', amount: '3420.50', confidence: '0.95' }) },
+          ],
+        },
+      },
+    ],
+  })
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('the model’s reasoning is not mistaken for its answer', b.title === 'Meralco Bill', b)
+  check('  and the amount still survives', b.amount === 3420.5, b.amount)
+}
+{
+  stubGemini({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [] } }] })
+  const res = await handler(post(IMG))
+  const b = (await res.json()) as Record<string, unknown>
+  check('a truncated answer says so instead of "returned nothing"', String(b.message).includes('ran out of room'), b)
 }
 {
   stubGemini({ error: { code: 404, message: 'no longer available' } }, 404)

@@ -35,11 +35,25 @@ export class ExtractorNotConfiguredError extends Error {
   }
 }
 
-/** The free tier's limit was hit. Waiting actually helps, so say so. */
+/**
+ * The free tier's limit was hit.
+ *
+ * `scope` is what makes this recoverable or not: a per-minute cap clears
+ * itself, so the app waits it out without bothering the user, while a daily one
+ * needs saying out loud. `retryAfter` is the server's own suggestion in
+ * seconds.
+ */
 export class RateLimitedError extends Error {
-  constructor(message = 'The AI free limit was reached. Try again in a minute.') {
-    super(message)
+  readonly scope: 'minute' | 'day'
+  readonly retryAfter: number
+
+  constructor(
+    opts: { scope?: 'minute' | 'day'; retryAfter?: number; message?: string } = {},
+  ) {
+    super(opts.message || 'The AI free limit was reached.')
     this.name = 'RateLimitedError'
+    this.scope = opts.scope === 'day' ? 'day' : 'minute'
+    this.retryAfter = Number.isFinite(opts.retryAfter) ? Math.max(0, opts.retryAfter as number) : 45
   }
 }
 
@@ -204,7 +218,21 @@ export class HttpExtractor implements Extractor {
     const res = await fetch(this.endpoint, { method: 'POST', body, signal })
     if (res.status === 422) throw new UnreadableDropError()
     if (res.status === 503) throw new ExtractorNotConfiguredError()
-    if (res.status === 429) throw new RateLimitedError()
+    if (res.status === 429) {
+      // The server says which limit was hit and how long it lasts. Carry that
+      // through so the screen can wait it out instead of giving up.
+      const info = (await res.json().catch(() => ({}))) as {
+        scope?: 'minute' | 'day'
+        retryAfter?: number
+        message?: string
+      }
+      const header = Number(res.headers.get('retry-after'))
+      throw new RateLimitedError({
+        scope: info.scope,
+        retryAfter: info.retryAfter ?? (Number.isFinite(header) ? header : undefined),
+        message: info.message,
+      })
+    }
     if (!res.ok) throw new Error(`Extraction failed (${res.status})`)
 
     onStep?.(3)

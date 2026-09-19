@@ -154,8 +154,13 @@ a { color: var(--primary-ink); text-decoration: none; }
 .btn.destructive { background: var(--surface); color: var(--danger); border: 1px solid var(--border); }
 .btn.sm { min-height: 44px; padding: 11px 14px; font-size: 14.5px; border-radius: 13px; }
 
+/* Stacked buttons were meeting edge to edge, which reads as one odd control
+   and puts two different outcomes a thumb's width apart. A row already has its
+   own gap, so it opts out. */
+.btn + .btn { margin-top: 10px; }
 .btnrow { display: flex; gap: 10px; }
 .btnrow .btn { flex: 1; }
+.btnrow .btn + .btn { margin-top: 0; }
 
 /* ---------- inputs ---------- */
 

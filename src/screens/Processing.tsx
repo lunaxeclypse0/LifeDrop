@@ -23,7 +23,10 @@ const CAPTIONS = [
   'Ready.',
 ]
 
-type Phase = 'working' | 'unreadable' | 'unconfigured' | 'ratelimited' | 'failed'
+type Phase = 'working' | 'waiting' | 'unreadable' | 'unconfigured' | 'ratelimited' | 'failed'
+
+/** How many per-minute limits to wait out before admitting defeat. */
+const AUTO_WAITS = 2
 
 export function Processing() {
   const navigate = useNavigate()
@@ -33,7 +36,17 @@ export function Processing() {
   const [phase, setPhase] = useState<Phase>('working')
   const [result, setResult] = useState<Extraction | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [waitUntil, setWaitUntil] = useState(0)
+  const [waitTotal, setWaitTotal] = useState(0)
+  const [secondsLeft, setSecondsLeft] = useState(0)
+  const [limitNote, setLimitNote] = useState('')
   const abortRef = useRef<AbortController | null>(null)
+  const waitsUsed = useRef(0)
+
+  const retry = () => {
+    waitsUsed.current = 0
+    setAttempt((a) => a + 1)
+  }
 
   // No capture to work on — someone deep-linked here.
   useEffect(() => {
@@ -61,6 +74,25 @@ export function Processing() {
         setExtraction(extraction)
       } catch (err) {
         if (controller.signal.aborted) return
+
+        // A per-minute cap is not a failure, it is a queue. Wait it out and go
+        // again rather than handing the user a wall for something that clears
+        // itself in half a minute.
+        if (
+          err instanceof RateLimitedError &&
+          err.scope === 'minute' &&
+          waitsUsed.current < AUTO_WAITS
+        ) {
+          waitsUsed.current += 1
+          setLimitNote(err.message)
+          const seconds = Math.max(5, err.retryAfter)
+          setWaitTotal(seconds)
+          setWaitUntil(Date.now() + seconds * 1000)
+          setPhase('waiting')
+          return
+        }
+
+        setLimitNote(err instanceof RateLimitedError ? err.message : '')
         setPhase(
           err instanceof UnreadableDropError ? 'unreadable'
           : err instanceof ExtractorNotConfiguredError ? 'unconfigured'
@@ -73,10 +105,28 @@ export function Processing() {
     return () => controller.abort()
   }, [source, attempt, setExtraction])
 
-  // Hold on "Ready." for a beat so the last extracted row is readable.
+  // Count the wait down on screen, then go again by itself.
+  useEffect(() => {
+    if (phase !== 'waiting') return
+    let fired = false
+    const tick = () => {
+      const left = Math.ceil((waitUntil - Date.now()) / 1000)
+      setSecondsLeft(Math.max(0, left))
+      if (left <= 0 && !fired) {
+        fired = true
+        setAttempt((a) => a + 1)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 250)
+    return () => clearInterval(id)
+  }, [phase, waitUntil])
+
+  // Hold on "Ready." just long enough to read the last row. Any longer is time
+  // taken from someone standing at a counter.
   useEffect(() => {
     if (!result) return
-    const t = setTimeout(() => navigate('/review', { replace: true }), 620)
+    const t = setTimeout(() => navigate('/review', { replace: true }), 340)
     return () => clearTimeout(t)
   }, [result, navigate])
 
@@ -91,7 +141,7 @@ export function Processing() {
     { k: 'Category', v: result ? CATEGORIES[result.category].label : null, on: step >= 3 },
   ]
 
-  if (phase !== 'working') {
+  if (phase !== 'working' && phase !== 'waiting') {
     const COPY = {
       unreadable: {
         art: 'unreadable' as const,
@@ -107,8 +157,12 @@ export function Processing() {
       },
       ratelimited: {
         art: 'offline' as const,
-        title: 'The free limit was reached',
-        body: 'The AI has read its quota for now. Wait a minute and try again, or type the details in yourself.',
+        title: 'The AI is out of free reads',
+        // The server says which limit was hit — a daily allowance and a busy
+        // minute call for completely different things from the user.
+        body:
+          (limitNote || 'The free allowance was used up.') +
+          ' Your drop is safe either way — you can type the details in now and it will be saved just the same.',
         retry: true,
       },
       failed: {
@@ -132,7 +186,7 @@ export function Processing() {
               {COPY.body}
             </p>
             {COPY.retry && (
-              <Button icon="refresh" onClick={() => setAttempt((a) => a + 1)}>
+              <Button icon="refresh" onClick={retry}>
                 Try again
               </Button>
             )}
@@ -209,14 +263,24 @@ export function Processing() {
 
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div className="display" style={{ fontSize: 19 }}>
-            {CAPTIONS[Math.min(step, 4)]}
+            {phase === 'waiting' ? 'Waiting for the AI to free up…' : CAPTIONS[Math.min(step, 4)]}
           </div>
           <div className="caption" style={{ marginTop: 5 }}>
-            {pending.source.file.name}
+            {phase === 'waiting'
+              ? `Going again in ${secondsLeft}s. Nothing is lost.`
+              : pending.source.file.name}
           </div>
         </div>
 
-        <Progress value={(Math.min(step, 4) + 1) / 5} />
+        {/* The bar would otherwise keep implying progress while nothing is
+            happening. During a wait it shows the wait instead. */}
+        <Progress
+          value={
+            phase === 'waiting'
+              ? 1 - secondsLeft / Math.max(1, waitTotal)
+              : (Math.min(step, 4) + 1) / 5
+          }
+        />
 
         <div className="card" style={{ marginTop: 18 }}>
           <div className="seclabel" style={{ marginBottom: 6 }}>

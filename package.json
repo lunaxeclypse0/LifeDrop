@@ -11,7 +11,7 @@
     "typecheck": "tsc -b --noEmit",
     "smoke": "node scripts/smoke.mjs .smoke",
     "shots": "node scripts/screenshots.mjs .shots",
-    "test:api": "node --experimental-strip-types scripts/api-test.ts",
+    "test:api": "esbuild scripts/api-test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/api-test.mjs --log-level=warning && node node_modules/.cache/api-test.mjs",
     "test:voice": "esbuild scripts/voice-test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/voice-test.mjs --log-level=warning && node node_modules/.cache/voice-test.mjs",
     "test": "npm run test:api && npm run test:voice",
     "audit": "node scripts/audit.mjs .audit"

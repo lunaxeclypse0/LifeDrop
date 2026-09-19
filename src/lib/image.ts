@@ -6,8 +6,11 @@
  * original is still stored locally at full size.
  */
 
-const MAX_EDGE = 1600
-const QUALITY = 0.85
+// Tuned down from 1600 / 0.85: on Philippine mobile data the upload was the
+// slowest part of a scan, and printed receipt text is still comfortably legible
+// here. Smaller images also cost fewer of the free tier's tokens per read.
+const MAX_EDGE = 1400
+const QUALITY = 0.75
 
 export async function downscaleForUpload(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file // PDFs go up untouched
