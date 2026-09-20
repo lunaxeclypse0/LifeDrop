@@ -11,7 +11,7 @@ import { adoptLocalDrops, resetSyncCursor, sync } from './sync'
 import type { User } from '@supabase/supabase-js'
 
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'system',
+  theme: 'light',
   onboarded: false,
   // Blank until the user says who they are. Nothing is invented for them.
   name: '',

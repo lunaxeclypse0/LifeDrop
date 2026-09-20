@@ -1,11 +1,11 @@
 /* LifeDrop design tokens — design/design-system.md + design/motion-spec.md */
 
 /* Light mode is a white canvas held together by hairlines rather than by
-   shadows and grey panels: the page is near-white, cards are pure white, and
+   shadows and grey panels: the page and cards are pure white, and
    separation comes from a 1px rule. Weight is carried by type and by one
    saturated accent, used sparingly. */
 :root {
-  --bg: #FCFCFD;
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
   --elev: #FFFFFF;
   --text: #061A3C;

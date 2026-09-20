@@ -67,7 +67,7 @@ a { color: var(--primary-ink); text-decoration: none; }
 }
 
 @media (min-width: 780px) and (min-height: 720px) {
-  .shell { background: #EEEFF4; }
+  .shell { background: var(--bg); }
   :root[data-theme='dark'] .shell { background: #05080F; }
   .device {
     height: min(884px, calc(100vh - 48px));
