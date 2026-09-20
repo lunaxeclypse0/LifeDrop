@@ -95,10 +95,7 @@ export function InstallBanner() {
           display: 'flex',
           alignItems: 'center',
           gap: 13,
-          marginBottom: 16,
-          borderColor: 'color-mix(in srgb, var(--primary) 32%, var(--border))',
-          background: 'color-mix(in srgb, var(--primary) 4%, var(--surface))',
-        }}
+          marginBottom: 16,        }}
       >
         <DropMark size={38} />
         <div style={{ flex: 1, minWidth: 0 }}>

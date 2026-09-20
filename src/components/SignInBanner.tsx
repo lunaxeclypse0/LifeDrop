@@ -34,10 +34,7 @@ export function SignInBanner() {
         display: 'flex',
         alignItems: 'center',
         gap: 13,
-        marginBottom: 16,
-        borderColor: 'color-mix(in srgb, var(--accent) 35%, var(--border))',
-        background: 'color-mix(in srgb, var(--accent) 5%, var(--surface))',
-      }}
+        marginBottom: 16,      }}
     >
       <span
         className="tile sm"

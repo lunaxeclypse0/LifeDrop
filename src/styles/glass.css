@@ -1,78 +1,49 @@
-/** Dark-mode panel styling over a solid charcoal canvas. */
-
+/** Charcoal glass surfaces. The page itself stays solid #1C1C1D. */
 :root[data-theme='dark'] {
-  --glass-edge: rgba(255, 255, 255, 0.10);
-  /* A single bright hairline along the top edge is what reads as a pane
-     catching light. A uniform outline all the way round reads as a box. */
-  --glass-lip: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --glass-cast: 0 18px 44px -22px rgba(0, 0, 0, 0.75);
-  --glass-blur: blur(18px) saturate(150%);
+  --glass-edge: rgba(255, 255, 255, .12);
+  --glass-lip: inset 0 1px 0 rgba(255, 255, 255, .12);
+  --glass-cast: 0 12px 28px -20px rgba(0, 0, 0, .65);
+  --glass-fill: linear-gradient(135deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .015)), rgba(38, 38, 40, .82);
 }
 
-/* The device uses the solid --bg token; no texture or colored lights. */
-
-/**
- * Transparent, not tinted. A translucent top bar over a ground that shows
- * through the scroll area below it drew a hard horizontal seam across every
- * screen — the "border" that was never asked for. Nothing scrolls behind the
- * bar in this layout, so it needs no background at all.
- */
 :root[data-theme='dark'] :is(.topbar, .topbar.bordered) {
   background: none;
   border-bottom-color: transparent;
 }
 
+:root[data-theme='dark'] :where(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary, .gradcard) {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-lip), var(--glass-cast);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+/* A soft silver reflection gives the summary emphasis without a colored slab. */
+:root[data-theme='dark'] .gradcard {
+  background: linear-gradient(120deg, rgba(211, 200, 227, .12), rgba(255, 255, 255, .025) 65%), rgba(43, 42, 46, .86);
+  color: var(--text);
+  border-color: rgba(220, 209, 234, .2);
+}
+:root[data-theme='dark'] .gradcard::before,
+:root[data-theme='dark'] .gradcard::after { content: none; }
+
+:root[data-theme='dark'] :is(.sheet, .modal) {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .06), transparent), rgba(38, 38, 40, .94);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-lip), 0 -18px 60px rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(26px);
+}
+
 :root[data-theme='dark'] .nav {
-  background: rgba(7, 11, 20, 0.72);
-  border-top-color: rgba(255, 255, 255, 0.07);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  background: rgba(28, 28, 29, .92);
+  border-top-color: rgba(255, 255, 255, .09);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
-
-/* ---------- panels ---------- */
-
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
-    /* Low fill on purpose. What should make a panel visible is the light it
-       picks up from the ground behind it, not white paint on the front. */
-    /* The near-black base is 56% — light enough that the ground still reads
-       straight through the panel, dark enough that a caption sitting over a
-       bright part of it keeps 4.5:1 with room to spare. */
-    background: linear-gradient(140deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
-      rgba(9, 13, 24, 0.56);
-    border-color: var(--glass-edge);
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
-  }
-
-  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt) {
-    box-shadow: var(--glass-lip), var(--glass-cast);
-  }
-  :root[data-theme='dark'] :is(.iconbtn, .btn.secondary) {
-    box-shadow: var(--glass-lip);
-  }
-
-  :root[data-theme='dark'] :is(.sheet, .modal) {
-    background: linear-gradient(140deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 -18px 60px rgba(0, 0, 0, 0.5);
-    -webkit-backdrop-filter: blur(26px) saturate(150%);
-    backdrop-filter: blur(26px) saturate(150%);
-  }
-}
-
-/* Without backdrop-filter a transparent panel would show the ground through it
-   unsoftened, so those panels have to carry their own body instead. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary) {
-    background: rgba(16, 23, 38, 0.92);
-    border-color: var(--glass-edge);
-    box-shadow: var(--glass-lip);
-  }
-  :root[data-theme='dark'] :is(.sheet, .modal) {
-    background: #121A2B;
-    border: 1px solid var(--glass-edge);
-  }
+:root[data-theme='dark'] .nav .dropbtn {
+  box-shadow: var(--glass-lip), 0 6px 18px rgba(0, 0, 0, .25);
 }
 
 :root[data-theme='dark'] .iconbtn.plain {
@@ -83,25 +54,23 @@
   backdrop-filter: none;
 }
 
-/* Inputs read as recessed rather than raised: no lip along the top, and a
-   shadow that falls inward. */
 :root[data-theme='dark'] :is(.field .box, .searchbar) {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, .035);
   border-color: var(--glass-edge);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
 }
+:root[data-theme='dark'] .row { border-bottom-color: rgba(255, 255, 255, .07); }
+:root[data-theme='dark'] .seclabel { color: var(--text2); }
 
-/* A divider inside a glass panel has to be lighter than a border on an opaque
-   surface, or it reads as a crack. */
-:root[data-theme='dark'] .row {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary, .gradcard, .sheet, .modal, .nav) {
+    background: #2B2A2D;
+  }
 }
-
-/* A section label has no panel behind it — it sits on the ground, and the
-   ground has light in it. --muted is tuned for text inside a panel and drops
-   under 4.5:1 out here, so out here it uses the brighter secondary. */
-:root[data-theme='dark'] .seclabel {
-  color: var(--text2);
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-theme='dark'] :is(.card, .rows, .dropcard, .sheetopt, .iconbtn, .btn.secondary, .gradcard, .sheet, .modal, .nav) {
+    background: #2B2A2D;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }

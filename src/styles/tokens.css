@@ -77,26 +77,26 @@
    palette — the accents are lifted so they hold up on a dark ground. */
 :root[data-theme='dark'] {
   --bg: #1C1C1D;
-  --surface: #0F1626;
-  --elev: #141D30;
+  --surface: #262628;
+  --elev: #303033;
   --text: #F6F8FC;
-  --text2: #9AA5BC;
+  --text2: #BAB8C1;
   /* Lifted from #6B7689, which measured 3.75:1 against a panel — under the 4.5
      that body text needs, and it was carrying captions, section labels and the
      month names under the spending chart. This is 5.3:1, with margin for the
      brighter places the ground shows through. */
-  --muted: #868FA3;
-  --border: #1E2739;
-  --hair: #161E2D;
-  --primary: #8C86FF;
-  --primary-ink: #ABA5FF;
-  --primary-soft: #191A3C;
-  --brand-grad: linear-gradient(135deg, #5B54F4, #3A2FD8);
+  --muted: #ABA8B2;
+  --border: #414045;
+  --hair: #323135;
+  --primary: #B5A6D4;
+  --primary-ink: #D1C4E9;
+  --primary-soft: #38323F;
+  --brand-grad: linear-gradient(135deg, #70617E, #51445F);
   --mark-grad: linear-gradient(140deg, #12D5FD, #1A94FD 34%, #683CFC 72%, #1F1FAD);
-  --accent: #3DDCF5;
-  --accent-ink: #67E8F9;
-  --accent-soft: #0C2732;
-  --violet: #A78BFA;
+  --accent: #B8ACC9;
+  --accent-ink: #D5CBDF;
+  --accent-soft: #353039;
+  --violet: #C2AED8;
   --success: #34D399;
   --warning: #FBBF24;
   --danger: #F87171;
