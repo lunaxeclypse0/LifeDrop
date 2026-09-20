@@ -72,11 +72,11 @@
   --nav-h: 64px;
 }
 
-/* Dark mode is the same restraint inverted: a near-black navy ground, one
+/* Dark mode is the same restraint inverted: a solid charcoal ground, one
    elevation step, hairlines rather than shadows. Not a flip of the light
    palette — the accents are lifted so they hold up on a dark ground. */
 :root[data-theme='dark'] {
-  --bg: #080D18;
+  --bg: #1C1C1D;
   --surface: #0F1626;
   --elev: #141D30;
   --text: #F6F8FC;

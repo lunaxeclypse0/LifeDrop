@@ -48,7 +48,7 @@ function useTheme() {
       const dark = theme === 'dark' || (theme === 'system' && media.matches)
       document.documentElement.dataset.theme = dark ? 'dark' : 'light'
       document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#080D18' : '#FFFFFF')
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1C1C1D' : '#FFFFFF')
     }
     apply()
     media.addEventListener('change', apply)

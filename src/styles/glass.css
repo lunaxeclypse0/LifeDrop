@@ -1,23 +1,4 @@
-/**
- * The dark theme's frosted glass.
- *
- * Everything here is scoped to `[data-theme='dark']`, so light mode stays the
- * white-minimalist design it was asked to be. Delete the file and the app is
- * unchanged.
- *
- * The first attempt at this looked generic, and the reason is worth writing
- * down: it put translucent panels over a flat gradient. Frosted glass reads as
- * glass because you can see something *through* it, softened — a blur with
- * nothing behind it is just a lighter box with an outline. So the ground here
- * carries real detail: several small, bright, overlapping light sources and a
- * fine grain, and the panels genuinely blur it. As a card scrolls it passes
- * over different light and changes, which is the part that cannot be faked.
- *
- * The cost is real: `backdrop-filter` on every card in a scrolling list is the
- * expensive case on a phone. The blur radius is kept moderate for that reason,
- * and if scrolling ever feels sticky, the one line to change is the
- * `backdrop-filter` on the panel rule below.
- */
+/** Dark-mode panel styling over a solid charcoal canvas. */
 
 :root[data-theme='dark'] {
   --glass-edge: rgba(255, 255, 255, 0.10);
@@ -28,48 +9,7 @@
   --glass-blur: blur(18px) saturate(150%);
 }
 
-/* ---------- the ground ---------- */
-
-/**
- * Each light fades through three stops rather than dropping straight to
- * transparent. A linear ramp that reaches zero all at once leaves a Mach band --
- * the eye reads the place the fade stops as an edge -- and with six of them
- * sharing the same stop those edges lined up into what looked like a border
- * under the header. Fading to nothing gradually leaves nothing to see.
- *
- * No light source sits near the top. A header has no panel to sit in, so the
- * ground itself has to be dark where the title is -- and darkening it with an
- * overlay drew exactly the horizontal edge this was meant to avoid. Moving the
- * lights down leaves the top naturally black with nothing to see a seam in.
- *
- * Drawn rather than shipped as an image: it stays sharp at any size, costs no
- * download, and can be tuned in one place. The grain is what stops the blur
- * looking like a flat wash — it gives the glass something to soften.
- */
-:root[data-theme='dark'] .device::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.26'/%3E%3C/svg%3E"),
-    radial-gradient(58% 40% at 10% 26%, rgba(34, 211, 238, 0.42), rgba(34, 211, 238, 0.16) 34%, rgba(34, 211, 238, 0.04) 62%, rgba(34, 211, 238, 0) 88%),
-    radial-gradient(52% 36% at 88% 34%, rgba(139, 124, 255, 0.40), rgba(139, 124, 255, 0.15) 34%, rgba(139, 124, 255, 0.04) 62%, rgba(139, 124, 255, 0) 88%),
-    radial-gradient(54% 38% at 92% 46%, rgba(232, 84, 190, 0.28), rgba(232, 84, 190, 0.10) 34%, rgba(232, 84, 190, 0.03) 62%, rgba(232, 84, 190, 0) 88%),
-    radial-gradient(62% 44% at 22% 58%, rgba(76, 70, 242, 0.34), rgba(76, 70, 242, 0.13) 34%, rgba(76, 70, 242, 0.04) 62%, rgba(76, 70, 242, 0) 88%),
-    radial-gradient(56% 38% at 78% 84%, rgba(18, 190, 232, 0.30), rgba(18, 190, 232, 0.11) 34%, rgba(18, 190, 232, 0.03) 62%, rgba(18, 190, 232, 0) 88%),
-    radial-gradient(50% 36% at 8% 92%, rgba(167, 139, 250, 0.28), rgba(167, 139, 250, 0.10) 34%, rgba(167, 139, 250, 0.03) 62%, rgba(167, 139, 250, 0) 88%);
-  background-size: 180px 180px, auto, auto, auto, auto, auto, auto;
-  /* Enough to texture the blur, not enough to see as dirt. */
-  opacity: 0.6;
-}
-
-/* The ground sits at z-index 0 inside .device, so the app says so explicitly. */
-:root[data-theme='dark'] :is(.screen, .topbar, .scrollhost) {
-  position: relative;
-  z-index: 1;
-}
+/* The device uses the solid --bg token; no texture or colored lights. */
 
 /**
  * Transparent, not tinted. A translucent top bar over a ground that shows

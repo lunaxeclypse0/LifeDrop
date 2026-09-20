@@ -321,9 +321,9 @@ export function Appearance() {
   const patchSettings = useApp((s) => s.patchSettings)
 
   const options: { key: AppSettings['theme']; label: string; preview: string }[] = [
-    { key: 'light', label: 'Light', preview: '#F8FAFC' },
-    { key: 'dark', label: 'Dark', preview: '#0B1220' },
-    { key: 'system', label: 'System', preview: 'linear-gradient(110deg,#F8FAFC 50%,#0B1220 50%)' },
+    { key: 'light', label: 'Light', preview: '#FFFFFF' },
+    { key: 'dark', label: 'Dark', preview: '#1C1C1D' },
+    { key: 'system', label: 'System', preview: 'linear-gradient(110deg,#FFFFFF 50%,#1C1C1D 50%)' },
   ]
 
   return (
@@ -331,8 +331,8 @@ export function Appearance() {
       <TopBar title="Appearance" back />
       <div className="scrollhost no-nav">
         <p className="body2" style={{ margin: '0 0 18px' }}>
-          Dark mode is a near-black navy, not an inversion — the same palette, lifted. There is also
-          a one-tap switch in the top bar on Home.
+          Choose a white or charcoal background, or match your device with System.
+          You can also switch themes from the top bar on Home.
         </p>
 
         <div className="grid3">
